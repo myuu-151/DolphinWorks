@@ -1,7 +1,5 @@
 # OpenGC
 
-**GameCube Development Environment**
-
 An open-source development environment for Nintendo GameCube homebrew: a game engine, a
 toolchain, and builders that produce both from source.
 
