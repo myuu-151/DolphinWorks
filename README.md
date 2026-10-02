@@ -26,8 +26,6 @@ the way devkitPro collects its own.
 | Repo | What it is |
 |---|---|
 | [Octave-libogc](https://github.com/myuu-151/Octave-Libogc) | A fork of the Octave 3D engine for the GameCube (and Wii), on the original libogc: editor, Lua scripting, GX renderer, disc streaming, packaging to a bootable ISO. `Build Octave.bat` builds it from source. |
-| [OctaveSimpleSkies](https://github.com/myuu-151/OctaveSimpleSkies) | Procedural day and night skybox packs for it. |
-| [OctaveSimpleWater](https://github.com/myuu-151/OctaveSimpleWater) | A stylised water demo for it, Wind Waker style. |
 
 ## The toolchain
 
