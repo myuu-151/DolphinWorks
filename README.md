@@ -17,26 +17,10 @@ toolchain, and builders that produce both from source.
 
 ## Components
 
-### Engine: [Octave-libogc](https://github.com/myuu-151/Octave-Libogc)
-
-A 3D game engine for the GameCube, forked from Octave.
-
-- Scene editor and Lua scripting
-- GX renderer, disc streaming and memory card saves
-- Packages projects as bootable GameCube disc images
-
-**Installation:** download the latest release, or build from source with `Build Octave.bat`.
-
-### Toolchain: [gekko-toolchain](https://github.com/myuu-151/gekko-toolchain)
-
-The cross-compiler, linker and libraries that build GameCube programs. It is devkitPro's
-toolchain, distributed as a single archive (unofficial).
-
-- devkitPPC (GCC, binutils, newlib)
-- libogc, libfat and gamecube-tools
-- The build tools its makefiles require
-
-**Installation:** extract the latest release and run `Install.bat`.
+| Component | Description | Installation |
+|---|---|---|
+| **[Octave-libogc](https://github.com/myuu-151/Octave-Libogc)**<br>Engine | 3D game engine with a scene editor and Lua scripting. Packages projects as bootable GameCube disc images. | Download the latest release, or build from source with `Build Octave.bat`. |
+| **[gekko-toolchain](https://github.com/myuu-151/gekko-toolchain)**<br>Toolchain | Cross-compiler, linker and GameCube libraries: devkitPro's toolchain, distributed as a single archive (unofficial). | Extract the latest release and run `Install.bat`. |
 
 ## Requirements
 
