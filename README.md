@@ -1,6 +1,6 @@
 # OpenGC
 
-An open-source development kit for Nintendo GameCube: a game engine, a
+An open-source development suite for Nintendo GameCube: a game engine, a
 toolchain, and builders that produce both from source.
 
 > **In active development.** To report a bug, open an issue on the relevant project's repository.
