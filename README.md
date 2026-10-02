@@ -2,34 +2,35 @@
 
 **GameCube Development Environment**
 
-Make your own GameCube games, for free. Everything is open source and builds from source with a
-one-click builder.
+An open-source development environment for Nintendo GameCube homebrew: a game engine, a
+toolchain, and builders that produce both from source.
 
-> **In active development.** Found a bug? Open a ticket on that project's Issues page.
+> **In active development.** To report a bug, open an issue on the relevant project's repository.
 
-## What's in it
+## Components
 
-| | What it does | Get it |
+| Component | Description | Installation |
 |---|---|---|
-| **[Octave-libogc](https://github.com/myuu-151/Octave-Libogc)**<br>the engine | Where you make the game: a 3D editor, Lua scripting, and one click to package it as a GameCube disc image. | Download its release, or clone it and run `Build Octave.bat` |
-| **[gekko-toolchain](https://github.com/myuu-151/gekko-toolchain)**<br>the toolchain | What turns code into a program the GameCube runs: the compiler and the GameCube libraries (devkitPro's, in one zip). | Download its release, unzip, run `Install.bat` |
+| **[Octave-libogc](https://github.com/myuu-151/Octave-Libogc)**<br>Engine | 3D game engine with a scene editor and Lua scripting. Packages projects as bootable GameCube disc images. | Download the latest release, or build from source with `Build Octave.bat`. |
+| **[gekko-toolchain](https://github.com/myuu-151/gekko-toolchain)**<br>Toolchain | Cross-compiler, linker and GameCube libraries: devkitPro's toolchain, distributed as a single archive (unofficial). | Extract the latest release and run `Install.bat`. |
 
-## Make a game in three steps
+## Getting started
 
 1. **Install the toolchain:** [gekko-toolchain](https://github.com/myuu-151/gekko-toolchain), or
-   devkitPro's own [`gamecube-dev`](https://devkitpro.org/wiki/Getting_Started) if you prefer it.
-2. **Get the engine:** [Octave-libogc](https://github.com/myuu-151/Octave-Libogc).
-3. **Make your game** in Octave's editor, then package it for the GameCube. You get an `.iso`.
+   devkitPro's [`gamecube-dev`](https://devkitpro.org/wiki/Getting_Started).
+2. **Install the engine:** [Octave-libogc](https://github.com/myuu-151/Octave-Libogc).
+3. **Build a project:** create it in the Octave editor and package it for GameCube. The output is
+   a disc image (`.iso`).
 
-## Play it
+## Running a build
 
-- **On a PC:** open the `.iso` in the [Dolphin](https://dolphin-emu.org) emulator.
-- **On a GameCube:** copy the `.iso` to an SD card and boot it with
+- **Emulator:** load the disc image in [Dolphin](https://dolphin-emu.org).
+- **Hardware:** copy the disc image to an SD card and launch it with
   [Swiss](https://github.com/emukidid/swiss-gc).
 
 ## Sources
 
-The toolchain is built from these, kept as forks so they stay available:
+Forks of the toolchain's components are maintained to keep their sources available:
 [libogc](https://github.com/myuu-151/libogc) ·
 [libfat](https://github.com/myuu-151/libfat) ·
 [gamecube-tools](https://github.com/myuu-151/gamecube-tools) ·
@@ -41,4 +42,4 @@ The toolchain is built from these, kept as forks so they stay available:
 
 ---
 
-*Not affiliated with Nintendo or devkitPro. GameCube is a trademark of Nintendo.*
+*OpenGC is not affiliated with Nintendo or devkitPro. GameCube is a trademark of Nintendo.*
