@@ -1,6 +1,6 @@
 # OpenGC
 
-**GameCube homebrew, in the open: an engine, a toolchain, and the games made with them.**
+**GameCube Development Environment
 
 Everything here builds from source with a one-click builder window, and every disc image can be
 rebuilt by anyone from these repos. It's a set of projects by myuu-151, collected in one place,
