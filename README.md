@@ -16,8 +16,9 @@ An open-source development suite for Nintendo GameCube
 |---|---|
 | Windows 10 or later | Host platform for the editor, the builders and gekko-toolchain |
 | gekko-toolchain, or devkitPro's [`gamecube-dev`](https://devkitpro.org/wiki/Getting_Started) | Building GameCube programs |
-| Python 3 | Running the builders |
-| Visual Studio with C++, and the Vulkan SDK | Building the engine from source only |
+| [Python 3](https://www.python.org/downloads/) | Running the builders |
+| Python packages: [Pillow](https://pypi.org/project/pillow/) and [numpy](https://pypi.org/project/numpy/) | Making the games' assets (`py -m pip install pillow numpy`) |
+| [Visual Studio](https://visualstudio.microsoft.com/) with "Desktop development with C++", and the [Vulkan SDK](https://vulkan.lunarg.com/) | Building the engine from source only |
 
 ## Getting started
 
