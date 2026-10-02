@@ -1,6 +1,6 @@
 # OpenGC
 
-**GameCube Development Environment
+**GameCube Development Environment**
 
 Everything here builds from source with a one-click builder window, and every disc image can be
 rebuilt by anyone from these repos. It's a set of projects by myuu-151, collected in one place,
@@ -18,8 +18,8 @@ the way devkitPro collects its own.
    **GameCube toolchain** switch to pick between them.
 2. **The engine.** Download [Octave-libogc](https://github.com/myuu-151/Octave-Libogc)'s release,
    or clone it and run `Build Octave.bat`.
-3. **A game.** Clone it beside Octave-libogc and run its `Build ... .bat`. The disc image is
-   ready for Dolphin, or for a GameCube through Swiss.
+3. **Your game.** Make it in Octave's editor and package it for the GameCube from there. The disc
+   image is ready for Dolphin, or for a GameCube through Swiss.
 
 ## The engine
 
@@ -41,17 +41,6 @@ Its sources, forked so they stay available: [libogc](https://github.com/myuu-151
 [gcc](https://github.com/myuu-151/gcc) and [newlib](https://github.com/myuu-151/newlib).
 Swiss, which boots the disc images on a GameCube, is kept too:
 [swiss-gc-libogc](https://github.com/myuu-151/swiss-gc-libogc).
-
-## The games
-
-| Game | GameCube | Also |
-|---|---|---|
-| **Sonic Pipe Dream**: a 3D half-pipe racer born from Sonic 2's special stage | [SonicPipeDream-GC](https://github.com/myuu-151/SonicPipeDream-GC) | [Windows](https://github.com/myuu-151/SonicPipeDream) |
-| **Castle Crashers**: a native reimplementation, built from your own Steam copy | [Castle-Crashers-GC](https://github.com/myuu-151/Castle-Crashers-GC) | [Windows (the engine)](https://github.com/myuu-151/Castle-Crashers-Recomp) |
-| **Bejeweled 2**: its Classic mode, built from your own Steam copy | [BJ2GC](https://github.com/myuu-151/BJ2GC) | |
-
-Each has a builder: `Build Sonic Pipe Dream.bat`, `Build CCGC.bat`, `Build BJ2GC.bat`. Games built
-from a copy you own make their data from it; none of the original game's files are in these repos.
 
 *GameCube is a trademark of Nintendo. OpenGC isn't affiliated with Nintendo, or with devkitPro.
 Each project keeps its own licence.*
