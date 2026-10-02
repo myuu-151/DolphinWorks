@@ -3,14 +3,6 @@
 An open-source development suite for Nintendo GameCube
 > **In active development.** To report a bug, open an issue on the relevant project's repository.
 
-## Contents
-
-- [Components](#components)
-- [Requirements](#requirements)
-- [Getting started](#getting-started)
-- [Running a build](#running-a-build)
-- [Sources](#sources)
-
 ## Components
 
 | Component | Description | Installation |
