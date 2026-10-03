@@ -40,13 +40,13 @@ svg { fill: currentColor; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 14px; }
-.logo { width: 84px; height: 84px; filter: drop-shadow(0 4px 14px rgba(11, 132, 228, .45)); }
+.logo { width: 84px; height: 84px; }
 .brand-name { font-size: 34px; font-weight: 600; letter-spacing: .5px; line-height: 1.05;
   background: linear-gradient(180deg, #b9dcff, #5aa2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .brand-sub { font-size: 13px; letter-spacing: 3.5px; color: #c9d6ee; margin-top: 4px; }
 .flow { margin-left: auto; display: flex; gap: 18px; align-items: center; color: var(--muted); font-size: 12px; letter-spacing: 3px; }
 .flow i { font-style: normal; color: var(--dim); }
-.top-status { display: flex; gap: 8px; margin-left: 24px; }
+.top-status { display: flex; gap: 8px; margin-left: auto; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
   background: var(--panel); border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .chip .dot { width: 8px; height: 8px; }
