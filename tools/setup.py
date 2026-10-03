@@ -1,8 +1,8 @@
-"""OpenGC Setup: everything needed to make GameCube games, installed in one window.
+"""DolphinWorks Setup: everything needed to make GameCube games, installed in one window.
 
-    Double-click "Setup OpenGC.bat" (or: python tools/setup.py)
+    Double-click "gcsuite.bat" (or: python tools/setup.py)
 
-Into one folder (C:\\OpenGC unless another is chosen), each part a tick box:
+Into one folder (C:\\DolphinWorks unless another is chosen), each part a tick box:
 
 - the Python packages the builders use: Pillow and numpy (pip, for this user);
 - the GameCube toolchain: gekko-toolchain's latest release, unzipped, and DEVKITPRO and DEVKITPPC
@@ -35,12 +35,12 @@ from tkinter import filedialog, ttk
 
 HERE = Path(__file__).resolve().parents[1]
 SETTINGS = Path(__file__).with_name('.setup.json')            # (not in git)
-DEFAULT_ROOT = Path(r'C:\OpenGC')
+DEFAULT_ROOT = Path(r'C:\DolphinWorks')
 TOOLCHAIN_REPO, ENGINE_REPO = 'myuu-151/gekko-toolchain', 'myuu-151/Octave-Libogc'
 PACKAGES = ('pillow', 'numpy')
 NO_WINDOW, LOW_PRIORITY = 0x08000000, 0x4000
-# For testing only: OPENGC_NO_ENV=1 leaves the user's environment variables alone.
-TOUCH_ENV = not os.environ.get('OPENGC_NO_ENV')
+# For testing only: DOLPHINWORKS_NO_ENV=1 leaves the user's environment variables alone.
+TOUCH_ENV = not os.environ.get('DOLPHINWORKS_NO_ENV')
 
 
 # --- what's there ---------------------------------------------------------------------------------
@@ -101,12 +101,12 @@ def toolchain_label(path):
 
 
 def engine_version(folder):
-    """The engine's release as setup installed it (.opengc-release), 'built here', or None."""
+    """The engine's release as setup installed it (.dolphinworks-release), 'built here', or None."""
     folder = Path(folder)
     if not (folder / 'Octave.exe').exists() or not (folder / 'Engine' / 'Build' / 'GCN' / 'libEngine.a').exists():
         return 'source' if (folder / '.git').exists() else None
     try:
-        return (folder / '.opengc-release').read_text().strip()
+        return (folder / '.dolphinworks-release').read_text().strip()
     except OSError:
         return 'built here'
 
@@ -172,7 +172,7 @@ class Setup:
         self.busy = False
         self.entries = []
         self.phase = self.step = ''
-        root.title('OpenGC Setup')
+        root.title('DolphinWorks Setup')
         root.minsize(700, 560)
         try:
             settings = json.loads(SETTINGS.read_text())
@@ -184,7 +184,7 @@ class Setup:
         self.verbose = tk.BooleanVar(value=False)
 
         pad = {'padx': 10, 'pady': 4}
-        ttk.Label(root, text='OpenGC Setup', font=('Segoe UI', 14, 'bold')).pack(anchor='w', **pad)
+        ttk.Label(root, text='DolphinWorks Setup', font=('Segoe UI', 14, 'bold')).pack(anchor='w', **pad)
         ttk.Label(root, text='Everything needed to make GameCube games, in one folder.').pack(anchor='w', padx=10)
 
         where = ttk.Frame(root)
@@ -305,7 +305,7 @@ class Setup:
         return ok
 
     def choose(self):
-        folder = filedialog.askdirectory(title='Where to install OpenGC (a path without spaces)',
+        folder = filedialog.askdirectory(title='Where to install DolphinWorks (a path without spaces)',
                                          initialdir=self.folder.get())
         if folder:
             self.folder.set(str(Path(folder)))
@@ -471,7 +471,7 @@ class Setup:
                 set_user_env('GEKKO_PREVIOUS_DEVKITPPC', user_env('DEVKITPPC'))
             set_user_env('DEVKITPRO', dkp)
             set_user_env('DEVKITPPC', dkp + '/devkitPPC')
-        self.say(f'gekko-toolchain {tag}: {folder}' + ('' if TOUCH_ENV else ' (environment left alone: OPENGC_NO_ENV)'))
+        self.say(f'gekko-toolchain {tag}: {folder}' + ('' if TOUCH_ENV else ' (environment left alone: DOLPHINWORKS_NO_ENV)'))
         if TOUCH_ENV:
             self.say(f'DEVKITPRO={dkp}; its Uninstall.bat puts the previous one back')
         return True
@@ -498,7 +498,7 @@ class Setup:
         self.lines.put(('step', 'unpacking it'))
         self.unzip(archive, folder)
         archive.unlink()
-        (folder / '.opengc-release').write_text(tag + '\n')
+        (folder / '.dolphinworks-release').write_text(tag + '\n')
         self.say(f'Octave-libogc {tag}: {folder}')
         return True
 
