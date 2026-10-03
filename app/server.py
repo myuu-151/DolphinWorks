@@ -1500,6 +1500,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({'ok': True, **content(by_id(query.get('id', [''])[0]))})
             except (ValueError, OSError) as e:
                 return self.json({'ok': False, 'message': str(e)})
+        if url.path == '/api/disc_files':
+            project = by_id(query.get('id', [''])[0])
+            files = disc.disc_files(project['iso']) if project and Path(project['iso']).exists() else None
+            if files is None:
+                return self.json({'ok': False, 'message': 'No disc image yet: Build it first.' if project else 'No game.'})
+            return self.json({'ok': True, 'iso': project['iso'], 'files': files})
+        if url.path == '/api/disc_file':
+            project = by_id(query.get('id', [''])[0])
+            files = disc.disc_files(project['iso']) if project and Path(project['iso']).exists() else None
+            entry = next((f for f in files or [] if f['path'] == query.get('path', [''])[0]), None)
+            if not entry:
+                return self.send(404) if query.get('raw') else self.json({'ok': False, 'message': 'Not on the disc.'})
+            if query.get('raw'):
+                kind = MEDIA.get(Path(entry['path']).suffix.lower())
+                if not kind or entry['size'] > 64 * 2**20:
+                    return self.send(404)
+                return self.send(200, disc.read_range(project['iso'], entry['offset'], entry['size']), kind)
+            head = disc.read_range(project['iso'], entry['offset'], entry['size'], 512)
+            return self.json({'ok': True, **entry, 'asset': disc.asset_info(head)})
         if url.path == '/api/luaapi':
             return self.json(lua_api())
         if url.path == '/api/file':
@@ -1732,6 +1751,32 @@ class Handler(BaseHTTPRequestHandler):
                     return self.json({'ok': True})
             except (ValueError, OSError) as e:
                 return self.json({'ok': False, 'message': str(e)})
+        if action == 'disc_extract' and project:
+            files = disc.disc_files(project['iso']) if Path(project['iso']).exists() else None
+            want = str(body.get('path', ''))
+            chosen = [f for f in files or [] if f['path'] == want or (want == '' or f['path'].startswith(want + '/'))]
+            if not chosen:
+                return self.json({'ok': False, 'message': 'Not on the disc.'})
+            folder = pick_folder(f'Where to put {Path(want).name or "the disc"}\'s files')
+            if not folder:
+                return self.json({'ok': False, 'cancelled': True})
+            base = Path(folder)
+            strip = want.rsplit('/', 1)[0] + '/' if '/' in want and len(chosen) == 1 else (want.rsplit('/', 1)[0] + '/' if '/' in want else '')
+            for f in chosen:
+                rel = f['path'][len(strip):] if strip and f['path'].startswith(strip) else f['path']
+                out = base / rel.replace('&&SystemData', 'SystemData')
+                out.parent.mkdir(parents=True, exist_ok=True)
+                with open(project['iso'], 'rb') as src, open(out, 'wb') as dst:
+                    src.seek(f['offset'])
+                    left = f['size']
+                    while left:
+                        block = src.read(min(left, 1 << 20))
+                        if not block:
+                            break
+                        dst.write(block)
+                        left -= len(block)
+            launch(['explorer', str(base)])
+            return self.json({'ok': True, 'count': len(chosen), 'folder': str(base)})
         if action == 'convert' and project:
             return self.json({'ok': JOBS.start(f'Convert {project["title"]}\'s assets',
                                                lambda: convert_assets(project, bool(body.get('all')))), 'busy': JOBS.busy})

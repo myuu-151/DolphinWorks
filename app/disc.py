@@ -563,3 +563,59 @@ def make_bnr(path, start_from=None, default=None):
     else:
         raise ValueError('No banner to start from.')
     return read_bnr(path, 0, Path(path).stat().st_size)
+
+
+# ---- a disc's files (the Content page's Disc view) ----------------------------------------------------
+
+# Octave's asset types (their TypeIds: a hash of the class name), for naming what a .oct on a disc is
+OCTAVE_TYPES = {3451640368: 'Texture', 2590661312: 'SoundWave', 3558673693: 'StaticMesh', 3972519229: 'SkeletalMesh',
+                2750237807: 'MaterialLite', 165350136: 'MaterialInstance', 2750049423: 'MaterialBase',
+                2926094908: 'Material', 83892645: 'Scene', 3436210177: 'VideoClip', 2273716: 'Font',
+                3379895314: 'ParticleSystem', 342697119: 'ParticleSystemInstance'}
+
+
+def disc_files(iso):
+    """Every file on a GameCube disc: its file table's, and the program (main.dol, from the header) and the
+    apploader -- [{'path', 'offset', 'size'}], or None if it isn't a disc image."""
+    try:
+        with open(iso, 'rb') as f:
+            head = f.read(0x440)
+            if len(head) < 0x440 or head[0x1C:0x20] != b'\xc2\x33\x9f\x3d':
+                return None
+            dol_off, fst_off, fst_size = struct.unpack('>III', head[0x420:0x42C])
+            f.seek(dol_off)
+            dol = f.read(0x100)
+            f.seek(0x2440)
+            app = f.read(0x20)
+            f.seek(fst_off)
+            files = _fst_files(f.read(fst_size))
+    except (OSError, struct.error, ValueError):
+        return None
+    offsets = struct.unpack('>18I', dol[0:0x48])
+    sizes = struct.unpack('>18I', dol[0x90:0xD8])
+    dol_size = max((o + n for o, n in zip(offsets, sizes) if n), default=0x100)
+    out = [{'path': '&&SystemData/main.dol', 'offset': dol_off, 'size': dol_size},
+           {'path': '&&SystemData/boot.bin', 'offset': 0, 'size': 0x440},
+           {'path': '&&SystemData/bi2.bin', 'offset': 0x440, 'size': 0x2000}]
+    if len(app) >= 0x20:
+        app_size, app_trailer = struct.unpack('>II', app[0x14:0x1C])
+        out.append({'path': '&&SystemData/apploader.img', 'offset': 0x2440, 'size': 0x20 + app_size + app_trailer})
+    out += [{'path': k, 'offset': o, 'size': n} for k, (o, n) in sorted(files.items(), key=lambda kv: kv[0].lower())]
+    return out
+
+
+def read_range(iso, offset, size, limit=None):
+    with open(iso, 'rb') as f:
+        f.seek(offset)
+        return f.read(min(size, limit) if limit else size)
+
+
+def asset_info(data):
+    """An Octave asset's type, version and name, from the start of its .oct; None if it isn't one."""
+    if len(data) < 25 or struct.unpack('<I', data[0:4])[0] != 0x4F435421:
+        return None
+    version, type_id = struct.unpack('<II', data[4:12])
+    at = 13 + (8 if version >= 12 else 0)
+    n = struct.unpack('<I', data[at:at + 4])[0] if len(data) >= at + 4 else 0
+    name = data[at + 4:at + 4 + n].decode('latin-1', 'replace') if 0 < n < 256 else ''
+    return {'type': OCTAVE_TYPES.get(type_id, f'type {type_id}'), 'version': version, 'name': name}

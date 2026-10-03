@@ -662,18 +662,29 @@ async function loadContent(keepOpen = true) {
   if (!state) await refresh();               // (opened at start: the projects first)
   const p = project();
   $('#contentTitle').textContent = p ? `· ${p.title}` : '';
-  if (!p || !p.octp) {
+  $('#cRootHint').textContent = '';
+  const projectOnly = ['#cNewScript', '#cAddFiles', '#cConvert'];
+  projectOnly.forEach((b) => { $(b).disabled = !p || !p.octp; });
+  $('#page-content [data-act="build"]').disabled = !p || !p.octp;
+  $('.cdrop-hint').style.display = p && p.octp && C.mode !== 'disc' ? '' : 'none';
+  $('#cMode').style.display = p && p.octp ? '' : 'none';
+  if (!p) {
     C.project = null;
-    $('#cTree').innerHTML = '<div class="empty">Choose a game in Projects (one with a project: a disc image on its own has no files to work on).</div>';
+    $('#cTree').innerHTML = '<div class="empty">Choose a game in Projects.</div>';
     $('#cPane').innerHTML = '';
     return;
   }
+  if (C.project !== p.id) C.mode = p.octp ? 'project' : 'disc';      // (another game: its project first)
+  if (!p.octp) C.mode = 'disc';                // (a disc image alone: its disc is all there is)
+  $$('#cMode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === (C.mode || 'project')));
+  if (C.mode === 'disc') return loadDisc(p);
   if (C.project !== p.id) { C.project = p.id; C.open = null; C.dirty = false; }
   if (!C.api) api('/api/luaapi').then((a) => { C.api = a; });
   const r = await api('/api/content?id=' + encodeURIComponent(p.id));
   if (!r.ok) { $('#cTree').innerHTML = `<div class="empty">${esc(r.message)}</div>`; return; }
   C.data = r;
   $('#cRootHint').textContent = r.kind === 'cpp' ? 'C++ and Lua' : 'Lua';
+  if (C.open && C.open.startsWith('disc:')) C.open = null;
   renderTree();
   const asked = new URLSearchParams(location.search).get('open');   // ?open=Scripts/Game.lua: that file
   if (asked && !C.opened) { C.opened = true; openFile(asked, true); }
@@ -1054,11 +1065,116 @@ function contentMenu(x, y, target) {
   if (r.bottom > window.innerHeight - 8) menu.style.top = `${y - page.top - r.height}px`;
 }
 
+// --- the Disc view: what's on the disc image (its file table, and the program) ----------------------
+
+async function loadDisc(p) {
+  if (C.project !== p.id) { C.project = p.id; C.open = null; C.dirty = false; C.editor = null; }
+  const r = await api('/api/disc_files?id=' + encodeURIComponent(p.id));
+  if (!r.ok) { $('#cTree').innerHTML = `<div class="empty">${esc(r.message)}</div>`; $('#cPane').innerHTML = ''; return; }
+  // the flat list as a tree: folders first
+  const root = { dirs: {}, files: [] };
+  for (const f of r.files) {
+    const parts = f.path.split('/');
+    let at = root;
+    for (const part of parts.slice(0, -1)) at = at.dirs[part] = at.dirs[part] || { dirs: {}, files: [] };
+    at.files.push(f);
+  }
+  C.discFiles = r.files;
+  const total = r.files.reduce((n, f) => n + f.size, 0);
+  $('#cRootHint').textContent = `${r.files.length} files · ${kb(total)}`;
+  const rows = (node, prefix, depth) => Object.keys(node.dirs).sort((a, b) => a.localeCompare(b)).map((name) => {
+    const path = prefix + name, open = C.folds['disc:' + path] === true, sub = node.dirs[name];
+    const size = C.discFiles.filter((f) => f.path.startsWith(path + '/')).reduce((n, f) => n + f.size, 0);
+    return `<div class="crow dir${open ? ' open' : ''}" data-disc-dir="${esc(path)}" style="padding-left:${8 + depth * 14}px">
+      <span class="caret">${open ? '▾' : '▸'}</span>${esc(name === '&&SystemData' ? 'System' : name)}<span class="cbadge from">${kb(size)}</span></div>`
+      + (open ? rows(sub, path + '/', depth + 1) : '');
+  }).join('') + node.files.map((f) => {
+    const name = f.path.split('/').pop();
+    const icon = IMAGE_EXT.includes(ext(name)) ? '▣' : AUDIO_EXT.includes(ext(name)) ? '♪' : ext(name) === '.oct' ? '◆'
+      : ext(name) === '.dol' ? '⚙' : ext(name) === '.bnr' ? '▭' : TEXT_EXT.includes(ext(name)) ? '‹›' : '·';
+    return `<div class="crow file${C.open === 'disc:' + f.path ? ' sel' : ''}" data-disc-file="${esc(f.path)}" style="padding-left:${8 + depth * 14}px">
+      <span class="cicon">${icon}</span><span class="cname">${esc(name)}</span><span class="cbadge from">${kb(f.size)}</span></div>`;
+  }).join('');
+  $('#cTree').innerHTML = rows(root, '', 0) || '<div class="empty">Nothing on it.</div>';
+  if (!C.open || !C.open.startsWith('disc:')) renderDiscWelcome(p, r);
+}
+
+function renderDiscWelcome(p, r) {
+  const octave = r.files.filter((f) => f.path.endsWith('.oct')).length;
+  $('#cPane').innerHTML = `<div class="cwelcome"><h3>${esc(p.title)}: the disc</h3>
+    <p>What's on <code>${esc(r.iso.split(/[\\/]/).pop())}</code>: its file table, and the program and header the GameCube boots from. Click a file to see it; Extract copies any file, or a whole folder, out.</p>
+    <p class="muted">${r.files.length} files${octave ? `, ${octave} of them Octave assets` : ''}. ${p.octp ? 'This is what the last Build put on it: Project, above, is what you work on.' : 'A disc image on its own: no project to change, only the files on it.'}</p>
+    <p><button class="btn" data-extract="">Extract everything…</button></p></div>`;
+}
+
+async function openDiscFile(path) {
+  const p = project();
+  C.open = 'disc:' + path;
+  C.editor = null;
+  $$('#cTree .crow.sel').forEach((r) => r.classList.remove('sel'));
+  const row = $(`#cTree [data-disc-file="${CSS.escape(path)}"]`);
+  if (row) row.classList.add('sel');
+  const r = await api(`/api/disc_file?id=${encodeURIComponent(p.id)}&path=${encodeURIComponent(path)}`);
+  if (!r.ok) { $('#cPane').innerHTML = `<div class="empty">${esc(r.message)}</div>`; return; }
+  const name = path.split('/').pop(), e = ext(name);
+  const raw = `/api/disc_file?id=${encodeURIComponent(p.id)}&path=${encodeURIComponent(path)}&raw=1`;
+  const preview = name === 'opening.bnr' && p.bnr ? `<div class="cpreview"><img class="pixel-big" src="${image(p, 'disc_banner')}" alt=""></div>`
+    : IMAGE_EXT.includes(e) ? `<div class="cpreview"><img src="${raw}" alt=""></div>`
+    : AUDIO_EXT.includes(e) ? `<div class="cpreview audio"><audio controls src="${raw}"></audio></div>` : '';
+  const what = r.asset ? `An Octave asset: <b>${esc(r.asset.type)}</b> <code>${esc(r.asset.name)}</code> (asset version ${r.asset.version}), as the packager cooked it for the console.`
+    : name === 'main.dol' ? 'The program itself, as the GameCube runs it.'
+    : name === 'boot.bin' ? 'The disc header: its game ID, name, and where the program and file table are.'
+    : name === 'bi2.bin' ? 'The rest of the header: region, memory size.'
+    : name === 'apploader.img' ? 'The apploader: what loads the program off the disc.'
+    : name === 'opening.bnr' ? 'The banner Swiss and Dolphin show for the disc.' : '';
+  $('#cPane').innerHTML = `<div class="casset"><div class="casset-head"><h3>${esc(name)}</h3><span class="spacer"></span>
+      <button class="btn small" data-extract="${esc(path)}">Extract…</button></div>
+    ${preview}
+    <dl class="kv casset-kv"><dt>On the disc</dt><dd><code>${esc(path.replace('&&SystemData/', ''))}</code></dd>
+      <dt>Size</dt><dd>${kb(r.size)} (${r.size.toLocaleString()} bytes)</dd>
+      <dt>Where</dt><dd>offset 0x${r.offset.toString(16).toUpperCase()}</dd>
+      ${r.asset ? `<dt>In Lua</dt><dd><code>LoadAsset("${esc(r.asset.name)}")</code></dd>` : ''}</dl>
+    ${what ? `<p class="note">${what}</p>` : ''}</div>`;
+}
+
+async function extractFromDisc(path) {
+  const r = await api('/api/disc_extract', { id: project().id, path });
+  if (r.cancelled) return;
+  toast(r.ok ? `Extracted ${r.count} file${r.count > 1 ? 's' : ''} to ${r.folder}` : r.message || 'Not extracted.');
+}
+
 function bindContent() {
   $('#cRefresh').onclick = () => refreshContent();
+  $('#cMode').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || C.mode === b.dataset.mode) return;
+    if (C.dirty && !confirm(`${C.open} has changes that aren't saved. Leave them?`)) return;
+    C.mode = b.dataset.mode;
+    C.open = null; C.editor = null; C.dirty = false;
+    loadContent(false);
+  });
+  $('#cTree').addEventListener('click', (e) => {
+    const d = e.target.closest('[data-disc-dir]'), f = e.target.closest('[data-disc-file]');
+    if (d) { const k = 'disc:' + d.dataset.discDir; C.folds[k] = !C.folds[k]; loadDisc(project()); }
+    else if (f) openDiscFile(f.dataset.discFile);
+  });
+  document.addEventListener('click', (e) => { const x = e.target.closest('[data-extract]'); if (x) extractFromDisc(x.dataset.extract); });
   // right-click: the row's menu, or the panel's
   $('.cfiles').addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (C.mode === 'disc') {
+      const row = e.target.closest('[data-disc-dir], [data-disc-file]');
+      const path = row ? (row.dataset.discDir || row.dataset.discFile) : '';
+      const menu = $('#cMenu'), page = $('#page-content').getBoundingClientRect();
+      menu.innerHTML = `<div class="cmenu-item" data-x="1">${row ? (row.dataset.discDir ? 'Extract this folder…' : 'Extract…') : 'Extract everything…'}</div>
+        <div class="cmenu-sep"></div><div class="cmenu-item" data-r="1">Refresh</div>`;
+      menu.querySelector('[data-x]').onclick = () => { menu.classList.remove('show'); extractFromDisc(path); };
+      menu.querySelector('[data-r]').onclick = () => { menu.classList.remove('show'); loadContent(); };
+      menu.style.left = `${e.clientX - page.left}px`;
+      menu.style.top = `${e.clientY - page.top}px`;
+      menu.classList.add('show');
+      return;
+    }
     const row = e.target.closest('[data-dir], [data-file]');
     contentMenu(e.clientX, e.clientY, row ? { path: row.dataset.dir || row.dataset.file, dir: !!row.dataset.dir } : null);
   });
