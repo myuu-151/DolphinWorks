@@ -141,11 +141,12 @@ svg { fill: currentColor; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .btn.icon { padding: 4px 9px; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
-.right { margin: 14px 14px 10px 0; padding: 14px 16px; overflow-y: auto; }
+.right { margin: 14px 14px 10px 0; padding: 14px 16px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }   /* (its scrollbar's room kept: nothing goes under it) */
 .right h3 { margin: 6px 0 12px; font-size: 16px; font-weight: 600; }
 .right h3:not(:first-child) { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
-.field { display: grid; grid-template-columns: 86px 1fr; align-items: center; gap: 8px; margin-bottom: 9px; }
-.field:has(> :nth-child(3)) { grid-template-columns: 86px 1fr auto; }
+.field { display: grid; grid-template-columns: 86px minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 9px; }
+.field select { min-width: 0; text-overflow: ellipsis; }   /* (a narrow panel: a long value ends in ..., the arrow stays in view) */
+.field:has(> :nth-child(3)) { grid-template-columns: 86px minmax(0, 1fr) auto; }
 .field label { color: var(--muted); font-size: 13.5px; }
 .field .value { font-size: 13.5px; }
 /* fields (drop-downs, search): a flat inset, a step darker than the panel */
