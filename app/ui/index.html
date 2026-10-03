@@ -68,7 +68,16 @@
     <!-- RUN -->
     <div class="page" id="page-run">
       <div class="page-head"><div><h1>Run</h1><p>Play the disc image in Dolphin, or copy it to an SD card for a GameCube.</p></div></div>
-      <div class="grid2">
+      <!-- the game, while one runs: Dolphin's screen, placed over #screen by DolphinWorks.exe -->
+      <div class="card screen-card" id="screenCard" hidden>
+        <div class="screen-head">
+          <span class="dot busy"></span><b id="screenTitle"></b><span class="muted" id="screenStatus"></span>
+          <button class="btn small" id="popOut" title="Play it in a window of its own">⧉ Pop out</button>
+          <button class="btn small stop" id="stopGame">■ Stop</button>
+        </div>
+        <div class="screen" id="screen"><span class="muted" id="screenWait">Starting Dolphin...</span></div>
+      </div>
+      <div class="grid2" id="runCards">
         <div class="card"><h2>Dolphin</h2>
           <div class="profile-cards">
             <div class="profile" data-profile="Fast"><b>Fast</b><span>Everyday testing: dual core, the disc at full speed.</span></div>
@@ -112,7 +121,8 @@
     </div>
 
     <!-- LOG -->
-    <div class="log-panel">
+    <div class="splitter" id="logSplit" title="Drag to resize the build log"></div>
+    <div class="log-panel" id="logPanel">
       <div class="log-head">
         <span class="log-title">▤ Build Log</span>
         <span class="log-progress" id="progress"></span>

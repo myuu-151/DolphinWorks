@@ -218,15 +218,103 @@ async function act(name) {
   if (name === 'build' || name === 'deploy') $('#log').innerHTML = '';
   const res = await api('/api/' + name, body);
   if (!res.ok) toast(res.message || (res.busy ? `Busy: ${res.busy}` : 'That did not work.'));
+  else if (name === 'run' && host && res.pid) startGame(res.pid, res.title);
   else if (name === 'run') toast(`Starting Dolphin (${state.profile})`);
   else if (name === 'editor') toast('Opening the Octave editor');
+}
+
+// --- the game screen -----------------------------------------------------------------------------
+// In DolphinWorks.exe (WebView2), a game run from the app plays inside it: the page says where #screen
+// is, and the window puts Dolphin's game window there. In a browser, Dolphin just opens its own window.
+
+const host = window.chrome && window.chrome.webview;
+let game = null;                                     // { pid, title } while a game is in the app
+
+function startGame(pid, title) {
+  if (game) host.postMessage({ type: 'stop' });      // one game at a time
+  game = { pid, title };
+  $('#screenTitle').textContent = title;
+  $('#screenStatus').textContent = `Dolphin ${state.dolphin ? state.dolphin.version : ''}, ${state.profile} profile`;
+  $('#screenWait').hidden = false;
+  $('#screenCard').hidden = false;
+  $('#runCards').hidden = true;
+  $('.nav[data-page="run"]').click();
+  placeScreen();
+}
+
+function endGame(message) {
+  game = null;
+  $('#screenCard').hidden = true;
+  $('#runCards').hidden = false;
+  if (message) toast(message);
+}
+
+// where the screen is, in the window's pixels, or hidden when the Run page isn't showing
+function placeScreen() {
+  if (!host || !game) return;
+  const visible = $('#page-run').classList.contains('active') && !$('#screenCard').hidden;
+  const r = $('#screen').getBoundingClientRect(), k = window.devicePixelRatio;
+  host.postMessage({ type: 'embed', pid: game.pid, visible: visible && r.width > 0 ? 1 : 0,
+                     x: Math.round(r.left * k), y: Math.round(r.top * k), w: Math.round(r.width * k), h: Math.round(r.height * k) });
+}
+
+// the build log's height: dragged by the bar above it, down to just its title; remembered
+function logHeight(px) {
+  const panel = $('#logPanel'), head = panel.querySelector('.log-head').offsetHeight + 2;
+  const max = Math.max(head, $('.content').clientHeight * 0.7);
+  const h = Math.round(Math.min(Math.max(px, head), max));
+  const collapsed = h < head + 40;
+  panel.style.height = (collapsed ? head : h) + 'px';
+  panel.classList.toggle('collapsed', collapsed);
+  return collapsed ? head : h;
+}
+
+(function () {
+  const bar = $('#logSplit');
+  try { const saved = Number(localStorage.getItem('logHeight')); if (saved) requestAnimationFrame(() => logHeight(saved)); } catch (e) {}
+  bar.addEventListener('pointerdown', (e) => {
+    const start = e.clientY, from = $('#logPanel').offsetHeight;
+    bar.setPointerCapture(e.pointerId);
+    bar.classList.add('dragging');
+    const move = (m) => logHeight(from + start - m.clientY);
+    const up = () => {
+      bar.classList.remove('dragging');
+      bar.removeEventListener('pointermove', move);
+      bar.removeEventListener('pointerup', up);
+      try { localStorage.setItem('logHeight', String($('#logPanel').offsetHeight)); } catch (e) {}
+    };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', up);
+  });
+  bar.addEventListener('dblclick', () => {                 // double-click: shut it, or open it again
+    const h = logHeight($('#logPanel').classList.contains('collapsed') ? 180 : 0);
+    try { localStorage.setItem('logHeight', String(h)); } catch (e) {}
+  });
+})();
+
+if (host) {
+  host.addEventListener('message', (e) => {
+    const m = e.data;
+    if (!game || m.pid !== game.pid) return;
+    if (m.type === 'shown') $('#screenWait').hidden = true;
+    else if (m.type === 'ended') endGame(`${game.title}: Dolphin closed`);
+  });
+  new ResizeObserver(placeScreen).observe($('#screen'));
+  window.addEventListener('resize', placeScreen);
 }
 
 function bind() {
   $$('.nav').forEach((b) => b.onclick = () => {
     $$('.nav').forEach((x) => x.classList.toggle('active', x === b));
     $$('.page').forEach((pg) => pg.classList.toggle('active', pg.id === 'page-' + b.dataset.page));
+    placeScreen();                                   // (the game shows only on the Run page)
   });
+  $('#stopGame').onclick = () => { if (game) host.postMessage({ type: 'stop', pid: game.pid }); };
+  $('#popOut').onclick = () => {
+    if (!game) return;
+    host.postMessage({ type: 'popout', pid: game.pid });
+    endGame(`${game.title} is in its own window now`);
+  };
   $('#projectList').onclick = (e) => {
     const item = e.target.closest('.pitem');
     if (!item) return;

@@ -495,7 +495,16 @@ def deploy(project, drive):
 
 
 def launch(args, cwd=None):
-    subprocess.Popen(args, cwd=cwd, creationflags=0x00000008)   # DETACHED_PROCESS
+    return subprocess.Popen(args, cwd=cwd, creationflags=0x00000008)   # DETACHED_PROCESS
+
+
+# a game run from the app: no "stop the emulation?" question (the app's Stop, or closing the app, ends
+# it), the game in a window of its own (which DolphinWorks.exe puts in its Run page), and no pausing
+# when that window loses focus (it's inside the app, which has it)
+RUN_CONFIG = ['-C', 'Dolphin.Interface.ConfirmStop=False', '-C', 'Dolphin.Display.RenderToMain=False',
+              '-C', 'Dolphin.Interface.PauseOnFocusLost=False']
+if os.environ.get('DOLPHINWORKS_MUTE'):              # (tests: no sound)
+    RUN_CONFIG += ['-C', 'Dolphin.DSP.Volume=0']
 
 
 # --- the HTTP side -------------------------------------------------------------------------------
@@ -650,9 +659,9 @@ class Handler(BaseHTTPRequestHandler):
             args = [str(dolphin / 'Dolphin.exe')]
             if profiles:
                 args += ['-u', str(dolphin / ('User-Accurate' if body.get('profile') == 'Accurate' else 'User'))]
-            launch(args + ['-b', '-e', project['iso']], cwd=dolphin)
+            proc = launch(args + RUN_CONFIG + ['-b', '-e', project['iso']], cwd=dolphin)
             JOBS.emit('line', text=f'Running {project["title"]} in Dolphin ({body.get("profile", "Fast")})', level='info')
-            return self.json({'ok': True})
+            return self.json({'ok': True, 'pid': proc.pid, 'title': project['title']})
         if action == 'dolphin':
             dolphin, profiles = find_dolphin()
             if dolphin:
