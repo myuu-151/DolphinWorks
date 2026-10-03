@@ -353,6 +353,7 @@ def disc_details(p, octave):
     p['bnr_file'] = str(own) if own else None
     p['bnr_default'] = str(octave / 'Standalone' / 'Tools' / 'opening.bnr') if octave else None
     p['card'] = disc.read_card(folder, info)
+    p['saves'] = bool(p['card']) or (disc.game_saves(folder) if folder else None)   # (None: can't tell, a disc alone)
 
 
 def edit_banners(project):

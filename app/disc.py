@@ -273,6 +273,20 @@ def _project_files(folder, name, depth=3):
     return found
 
 
+def game_saves(folder):
+    """Whether a project's game ever writes a save: System.WriteSave in its scripts, or SYS_WriteSave in its
+    code. One that doesn't has nothing on the memory card to show an icon or banner on."""
+    folder = Path(folder)
+    for pattern, call in (('*.lua', b'System.WriteSave'), ('*.cpp', b'SYS_WriteSave'), ('*.h', b'SYS_WriteSave')):
+        for f in _project_files(folder, pattern, 3):
+            try:
+                if call in f.read_bytes():
+                    return True
+            except OSError:
+                pass
+    return False
+
+
 def _lua_hex(text, key):
     """A hex blob in SaveInfo.lua -- key = table.concat({ "..", ".." }) or key = "..": (start, end, bytes)."""
     m = re.search(r'(?m)^[ \t]*' + key + r'\s*=\s*(table\.concat\(\{(.*?)\}\)|"([0-9a-fA-F]*)")', text, re.S)

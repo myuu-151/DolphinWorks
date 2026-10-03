@@ -134,7 +134,10 @@ function discCards(p) {
                                : 'Saved in the disc image.'}</p>`
       : `<p class="note">${octave ? 'No banner yet: the build gives the disc Octave\'s.' : 'This disc has no banner (no opening.bnr).'}</p>`}</div>`;
   // (always there: when nothing is found, why)
-  let card = `<div class="subcard wide"><h3>Memory Card</h3><p class="note">${octave
+  let card = `<div class="subcard wide"><h3>Memory Card</h3><p class="note">${octave && !p.saves
+    ? `This game doesn't save: nothing in its scripts or code writes one (System.WriteSave, SYS_WriteSave), so the memory card
+       has nothing of it to show. Once it saves, its saves can have an icon and banner here.`
+    : octave
     ? `No save info yet: the game's saves show bare on the memory card screen. Generate makes it (Scripts/SaveInfo.lua: an icon and
        banner from the disc banner, the title), which Octave applies at startup; then edit it here.
        <span class="gen-row"><button class="btn" data-gen>Generate</button></span>`
