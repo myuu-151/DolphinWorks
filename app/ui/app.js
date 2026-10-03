@@ -650,6 +650,7 @@ const TEXT_EXT = ['.lua', '.cpp', '.c', '.h', '.hpp', '.inl', '.ini', '.md', '.j
 const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.bmp', '.webp', '.tga'];
 const AUDIO_EXT = ['.wav', '.ogg', '.mp3', '.flac'];
 const MODEL_EXT = ['.glb', '.gltf', '.obj', '.blend'];
+const VIDEO_EXT = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'];
 const ext = (path) => (path.match(/\.[^./]+$/) || [''])[0].toLowerCase();
 const kb = (n) => n == null ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
@@ -693,6 +694,7 @@ function renderTree() {
     const badge = a ? `<span class="cbadge ${STATE[a.state][0]}" title="${esc(a.asset)}: ${STATE[a.state][1]}">${esc(a.asset)}</span>`
       : s ? `<span class="cbadge from" title="Made from Raw/${esc(s.source)}">from ${esc(s.source.split('/').pop())}</span>` : '';
     const icon = IMAGE_EXT.includes(ext(e.path)) ? '▣' : AUDIO_EXT.includes(ext(e.path)) ? '♪' : MODEL_EXT.includes(ext(e.path)) ? '▲'
+      : VIDEO_EXT.includes(ext(e.path)) ? '▶' : ext(e.path) === '.ttf' ? 'Aa'
       : ext(e.path) === '.oct' ? '◆'
       : TEXT_EXT.includes(ext(e.path)) ? '‹›' : '·';
     return `<div class="crow file${C.open === e.path ? ' sel' : ''}" data-file="${esc(e.path)}" ${pad}>
@@ -772,16 +774,29 @@ async function openFile(path, quiet) {
   pane.innerHTML = `<div class="cinfo"><h3>${esc(path)}</h3><p class="muted">Not something DolphinWorks edits.</p></div>`;
 }
 
+// The lines that play a video full screen, in a script's Create (self: the script's node, a canvas or widget).
+function videoSnippet(name) {
+  return `local video = self:CreateChild("VideoQuad")
+video:SetAnchorMode(AnchorMode.FullStretch)
+video:SetMargins(0.0, 0.0, 0.0, 0.0)
+video:SetVideoClip(LoadAsset("${name}"))
+video:PlayVideo()`;
+}
+
 function renderAssetPane(path, a, url) {
   const s = a.settings, e = ext(path), pane = $('#cPane');
   const sel = (key, options) => `<select data-set="${key}">${options.map(([v, label]) => `<option value="${v}" ${String(s[key]) === String(v) ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
   const chk = (key) => `<input type="checkbox" data-set="${key}" ${s[key] ? 'checked' : ''}>`;
   const num = (key, step, min, max) => `<input type="number" data-set="${key}" value="${s[key]}" step="${step}" min="${min}" max="${max}">`;
   const preview = a.kind === 'texture' ? `<div class="cpreview"><img src="${url}&raw=1" alt=""></div>`
+    : a.kind === 'video' ? `<div class="cpreview video"><video controls src="${url}&raw=1"></video></div>`
+    : a.kind === 'font' ? `<div class="cpreview font"><style>@font-face { font-family: "dwpreview"; src: url("${url}&raw=1"); }</style>
+        <div style="font-family: dwpreview">Hello, GameCube! 0123456789</div></div>`
     : a.kind === 'mesh' ? `<div class="cparts">${(a.outputs || []).length ? (a.outputs || []).map((o) => `<span class="cpart ${o.slice(0, 2)}">${esc(o)}</span>`).join('')
                                                                               : '<span class="muted">Not converted yet.</span>'}</div>`
     : `<div class="cpreview audio"><audio controls src="${url}&raw=1"></audio></div>`;
-  const settings = a.kind === 'mesh' ? `
+  const settings = a.kind === 'video' || a.kind === 'font' ? ''
+    : a.kind === 'mesh' ? `
       <dt>Scale</dt><dd>${num('scale', 0.1, 0.001, 1000)}</dd>
       <dt>Lighting</dt><dd><label class="check">${chk('lit')} lit by the scene's lights</label></dd>
       <dt>Faces</dt><dd>${sel('cull', [['back', 'Front only (back faces hidden)'], ['none', 'Both sides']])}</dd>
@@ -805,12 +820,16 @@ function renderAssetPane(path, a, url) {
     ${preview}
     <dl class="kv casset-kv">
       <dt>Asset</dt><dd><input data-set="name" value="${esc(s.name)}" spellcheck="false"></dd>
-      <dt>In Lua</dt><dd><code id="cLuaLine">${a.kind === 'mesh' ? `node:SetStaticMesh(LoadAsset("${esc(a.asset)}"))` : `LoadAsset("${esc(s.name)}")`}</code>
+      <dt>In Lua</dt><dd>${a.kind === 'video' ? `<pre class="csnippet" id="cLuaLine">${esc(videoSnippet(s.name))}</pre>`
+        : a.kind === 'font' ? `<code id="cLuaLine">text:SetFont(LoadAsset("${esc(s.name)}"))</code>`
+        : `<code id="cLuaLine">${a.kind === 'mesh' ? `node:SetStaticMesh(LoadAsset("${esc(a.asset)}"))` : `LoadAsset("${esc(s.name)}")`}</code>`}
         <button class="btn small" id="cCopyLua">Copy</button></dd>
       ${settings}
       <dt>Size</dt><dd>${kb(a.source_size)} here${a.size ? ` · ${kb(a.size)} as an asset (before the console cook)` : ''}</dd>
     </dl>
-    <p class="note">${a.kind === 'mesh' ? `A mesh for each of its materials (SM_…), each material (M_…), and a texture for each picture in it (T_…), its scene baked flat. ${ext(path) === '.blend' ? 'Read by Blender itself (Packages), exported as glTF.' : ''}`
+    <p class="note">${a.kind === 'video' ? 'Cooked by Octave itself when it converts (its own importer, run headless): JPEG frames and the audio, played from the disc. Paste the lines above into the Create of a script (Game.lua, say), then Build.'
+      : a.kind === 'font' ? 'Imported by Octave itself when it converts (its own importer, run headless).'
+      : a.kind === 'mesh' ? `A mesh for each of its materials (SM_…), each material (M_…), and a texture for each picture in it (T_…), its scene baked flat. ${ext(path) === '.blend' ? 'Read by Blender itself (Packages), exported as glTF.' : ''}`
       : a.kind === 'texture' ? 'The GameCube format is chosen when it builds, from the picture\'s transparency: none, cut-out, or smooth.'
       : s.mode === 'music' ? 'Music is Vorbis, made at this quality, and streamed from the disc as it plays: it costs almost no memory.'
       : 'A sound effect is kept as 16-bit PCM in memory, so it starts the instant it\'s played.'}</p></div>`;

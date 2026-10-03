@@ -453,7 +453,8 @@ def new_project(name, kind, where):
 CONTENT_SKIP = {'Packaged', 'Build', 'Intermediate', 'Generated', 'Saves', '.git', '.vs', '__pycache__'}
 TEXT_FILES = {'.lua', '.cpp', '.c', '.h', '.hpp', '.inl', '.ini', '.md', '.json', '.py', '.txt', '.octp', '.glsl', '.bat'}
 MEDIA = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.bmp': 'image/bmp', '.webp': 'image/webp',
-         '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.flac': 'audio/flac'}
+         '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.flac': 'audio/flac',
+         '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.ttf': 'font/ttf'}
 LUA_API = {'key': None, 'api': None}
 
 
