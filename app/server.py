@@ -601,7 +601,18 @@ def build(project, options):
     env['DEVKITPRO'], env['DEVKITPPC'] = msys(dkp), msys(dkp / 'devkitPPC')
     env['OCTAVE'] = octave.as_posix()
     env['SDLOG'] = '1' if options.get('sd_log') else ''
+    env['GECKOLOG'] = '1' if options.get('gecko_log') else ''
     env['DIAG'] = '1' if options.get('build_type') == 'Diagnostic' else ''
+    # They're compile flags, and make can't tell when they change: switched since this project's last
+    # build (or unknown), its compiled code is made again -- its Intermediate/GCN cleared, as a whole
+    # (deleting some of what's in it, the .d files say, left stale objects that crashed a game).
+    flags = ' '.join(f'{k}={env[k]}' for k in ('SDLOG', 'GECKOLOG', 'DIAG'))
+    built_with = load_state().get('build_flags', {})
+    if built_with.get(project['octp']) != flags:
+        intermediate = Path(project['octp']).parent / 'Intermediate' / 'GCN'
+        if intermediate.is_dir():
+            JOBS.emit('line', text=f'Build options changed ({flags}): compiling it all again', level='info')
+            shutil.rmtree(intermediate, ignore_errors=True)
     JOBS.emit('line', text=f'Using toolchain: {toolchain_label(dkp)} ({dkp})', level='info')
     JOBS.emit('line', text=f'Building project: {project["title"]}', level='info')
     JOBS.emit('progress', step='packaging the assets')
@@ -615,6 +626,7 @@ def build(project, options):
     if not iso.exists():
         JOBS.emit('line', text='Build failed: no disc image was made (the lines above say why).', level='error')
         return False
+    save_state(build_flags={**load_state().get('build_flags', {}), project['octp']: flags})
     JOBS.emit('line', text='Build successful!', level='success')
     JOBS.emit('line', text=f'Output: {iso} ({iso.stat().st_size / 2**20:.1f} MB)', level='success')
     JOBS.emit('line', text=f'Total time: {time.time() - start:.1f}s', level='info')
@@ -813,6 +825,7 @@ def state_payload():
         'profile': st.get('profile', 'Fast'),
         'build_type': st.get('build_type', 'Release'),
         'sd_log': st.get('sd_log', False),
+        'gecko_log': st.get('gecko_log', False),
         'gecko': usb_gecko(),
         'sd_cards': sd_cards(),
         'sd_card': st.get('sd_card'),
@@ -892,7 +905,7 @@ class Handler(BaseHTTPRequestHandler):
         project = by_id(body.get('id'))
         if action == 'settings':
             save_state(**{k: v for k, v in body.items() if k in
-                          ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'sd_card', 'selected')})
+                          ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'gecko_log', 'sd_card', 'selected')})
             return self.json({'ok': True})
         if action == 'gdb' and project:
             return self.json(start_gdb(project))

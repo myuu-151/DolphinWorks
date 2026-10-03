@@ -101,6 +101,7 @@ function renderRight() {
     || '<option>None installed</option>';
   $('#buildType').value = state.build_type;
   $('#sdLog').checked = !!state.sd_log;
+  $('#geckoLog').checked = !!state.gecko_log;
   $('#profile').value = state.profile;
   // every Dolphin found: its version, and where it is when two share one
   const versions = state.dolphins.map((d) => d.version);
@@ -128,6 +129,7 @@ function renderPages() {
     <table class="table"><tr><th>Toolchain</th><td>${esc((state.toolchains.find((t) => t.path === state.toolchain) || {}).label || 'none')}</td></tr>
       <tr><th>Build type</th><td>${esc(state.build_type)}${state.build_type === 'Diagnostic' ? ' (memory census, flicker detector; slower)' : ''}</td></tr>
       <tr><th>SD log</th><td>${state.sd_log ? 'on: the game writes its log to the SD card' : 'off'}</td></tr>
+      <tr><th>Gecko log</th><td>${state.gecko_log ? 'on: the log, live over the USB Gecko (the Debug page)' : 'off'}</td></tr>
       <tr><th>Engine</th><td>${esc(state.octave || 'not installed')}</td></tr>
       <tr><th>Output</th><td>${esc(p.iso)}</td></tr></table>
     <div class="row2" style="margin-top:12px"><button class="btn primary" data-act="build" ${state.busy ? 'disabled' : ''}>Build</button>
@@ -313,7 +315,7 @@ function listen() {
 
 async function act(name) {
   const p = project();
-  const body = { id: p && p.id, profile: state.profile, build_type: state.build_type, sd_log: state.sd_log,
+  const body = { id: p && p.id, profile: state.profile, build_type: state.build_type, sd_log: state.sd_log, gecko_log: state.gecko_log,
                  drive: $('#sdSelect').value || null, embed: !!host };
   if (name === 'build' || name === 'deploy') $('#log').innerHTML = '';
   const res = await api('/api/' + name, body);
@@ -459,6 +461,7 @@ function bind() {
   $('#toolchain').onchange = (e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };
   $('#buildType').onchange = (e) => { state.build_type = e.target.value; api('/api/settings', { build_type: state.build_type }); renderPages(); };
   $('#sdLog').onchange = (e) => { state.sd_log = e.target.checked; api('/api/settings', { sd_log: state.sd_log }); renderPages(); };
+  $('#geckoLog').onchange = (e) => { state.gecko_log = e.target.checked; api('/api/settings', { gecko_log: state.gecko_log }); renderPages(); };
   $('#profile').onchange = (e) => { state.profile = e.target.value; api('/api/settings', { profile: state.profile }); render(); };
   $$('.profile').forEach((el) => el.onclick = () => { $('#profile').value = el.dataset.profile; $('#profile').onchange({ target: $('#profile') }); });
   $('#sdSelect').onchange = (e) => api('/api/settings', { sd_card: e.target.value });
