@@ -3,3 +3,5 @@ __pycache__/
 build/
 app/.state.json
 app/.window/
+app/launcher/*.obj
+app/launcher/*.res

@@ -562,6 +562,47 @@ def find_edge():
     return None
 
 
+def brand_window(proc):
+    """The app's own icon (app.ico, a navy tile with the dolphin) on its window and taskbar
+    button, in place of the badge Edge draws for app windows: the window is found by its title,
+    its icons set (sized for its screen's scaling), and set again if Edge puts its own back."""
+    user32 = ctypes.windll.user32
+    user32.LoadImageW.restype = ctypes.c_void_p
+    user32.SendMessageW.restype = ctypes.c_void_p
+    user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
+    ico = str(HERE / 'app.ico')
+    loaded = {}
+
+    def icon(size):
+        if size not in loaded:
+            loaded[size] = user32.LoadImageW(None, ico, 1, size, size, 0x10)   # IMAGE_ICON, LR_LOADFROMFILE
+        return loaded[size]
+
+    found = []
+    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def each(hwnd, _):
+        title = ctypes.create_unicode_buffer(64)
+        user32.GetWindowTextW(ctypes.c_void_p(hwnd), title, 64)
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(ctypes.c_void_p(hwnd), cls, 64)
+        if title.value == 'DolphinWorks' and cls.value.startswith('Chrome_WidgetWin') and user32.IsWindowVisible(ctypes.c_void_p(hwnd)):
+            found.append(hwnd)
+        return True
+
+    callback = callback_type(each)
+    while proc.poll() is None:
+        found.clear()
+        user32.EnumWindows(callback, None)
+        for hwnd in found:
+            dpi = user32.GetDpiForWindow(ctypes.c_void_p(hwnd)) or 96
+            big, small = icon(round(32 * dpi / 96)), icon(round(16 * dpi / 96))
+            if big and user32.SendMessageW(hwnd, 0x7F, 1, None) != big:          # WM_GETICON, ICON_BIG
+                user32.SendMessageW(hwnd, 0x80, 1, big)                          # WM_SETICON, ICON_BIG
+                user32.SendMessageW(hwnd, 0x80, 0, small)                        # WM_SETICON, ICON_SMALL
+        time.sleep(2)
+
+
 def main():
     global PROJECTS
     PROJECTS = scan_projects()
@@ -589,6 +630,7 @@ def main():
     # a window of its own (its own Edge profile), the size of the design; closing it ends the app
     proc = subprocess.Popen([str(edge), f'--app={url}', f'--user-data-dir={profile}', '--window-size=1440,960',
                              '--no-first-run', '--disable-features=Translate'])
+    threading.Thread(target=brand_window, args=(proc,), daemon=True).start()
     proc.wait()
     server.shutdown()
 
