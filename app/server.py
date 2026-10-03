@@ -96,17 +96,39 @@ def find_octave():
     return None
 
 
+def find_dolphins():
+    """Every Dolphin on this PC: DolphinWorks' own, the usual places, and the ones set in Settings."""
+    found = []
+    st = load_state()
+    for path in (st.get('dolphin'), DW_ROOT / 'Dolphin', DOCUMENTS / 'octave-libogc' / 'Dolphin-x64',
+                 DOCUMENTS / 'Dolphin-x64', Path.home() / 'Downloads' / 'Dolphin-x64', *st.get('dolphin_folders', [])):
+        if path and (Path(path) / 'Dolphin.exe').exists() and all(Path(path).resolve() != p.resolve() for p in found):
+            found.append(Path(path))
+    return found
+
+
 def find_dolphin():
-    """(folder, has DolphinWorks' Fast and Accurate profiles)."""
-    for path in (load_state().get('dolphin'), DW_ROOT / 'Dolphin', DOCUMENTS / 'octave-libogc' / 'Dolphin-x64',
-                 DOCUMENTS / 'Dolphin-x64', Path.home() / 'Downloads' / 'Dolphin-x64'):
-        if path and (Path(path) / 'Dolphin.exe').exists():
-            path = Path(path)
-            return path, (path / 'User-Accurate').is_dir()
-    return None, False
+    """(folder, has DolphinWorks' Fast and Accurate profiles): the one chosen, else the first found."""
+    found = find_dolphins()
+    if not found:
+        return None, False
+    return found[0], (found[0] / 'User-Accurate').is_dir()
+
+
+VERSIONS = {}                                      # (Dolphin.exe, its time) -> its version
 
 
 def dolphin_version(folder):
+    try:
+        key = (str(folder).lower(), (folder / 'Dolphin.exe').stat().st_mtime)
+    except OSError:
+        return 'installed'
+    if key not in VERSIONS:
+        VERSIONS[key] = read_dolphin_version(folder)
+    return VERSIONS[key]
+
+
+def read_dolphin_version(folder):
     try:
         return (folder / '.dolphinworks-release').read_text().strip()
     except OSError:
@@ -230,11 +252,10 @@ def set_path(kind, folder=None):
     folder = Path(folder).resolve()
     if not (folder / needs).exists():
         return False, f'{folder} has no {needs}.'
-    if kind == 'toolchain':
-        st = load_state()
-        extra = st.get('toolchain_folders', [])
+    if kind in ('toolchain', 'dolphin'):                        # kept in the Quick Settings list too
+        extra = load_state().get(f'{kind}_folders', [])
         if str(folder).lower() not in [e.lower() for e in extra]:
-            save_state(toolchain_folders=extra + [str(folder)])
+            save_state(**{f'{kind}_folders': extra + [str(folder)]})
     save_state(**{kind: str(folder)})
     return True, str(folder)
 
@@ -461,6 +482,8 @@ def state_payload():
         'toolchain': str(chosen) if chosen else None,
         'octave': str(octave) if octave else None,
         'dolphin': {'path': str(dolphin), 'version': dolphin_version(dolphin), 'profiles': profiles} if dolphin else None,
+        'dolphins': [{'path': str(p), 'version': dolphin_version(p), 'where': p.parent.name,
+                      'profiles': (p / 'User-Accurate').is_dir()} for p in find_dolphins()],
         'profile': st.get('profile', 'Fast'),
         'build_type': st.get('build_type', 'Release'),
         'sd_log': st.get('sd_log', False),
@@ -540,7 +563,7 @@ class Handler(BaseHTTPRequestHandler):
         project = by_id(body.get('id'))
         if action == 'settings':
             save_state(**{k: v for k, v in body.items() if k in
-                          ('toolchain', 'profile', 'build_type', 'sd_log', 'sd_card', 'selected')})
+                          ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'sd_card', 'selected')})
             return self.json({'ok': True})
         if action == 'rescan':
             PROJECTS = scan_projects()
@@ -566,8 +589,8 @@ class Handler(BaseHTTPRequestHandler):
         if action == 'reset_path' and body.get('kind') in PATHS:
             st = load_state()
             st.pop(body['kind'], None)
-            if body['kind'] == 'toolchain':
-                st.pop('toolchain_folders', None)
+            if body['kind'] in ('toolchain', 'dolphin'):
+                st.pop(f'{body["kind"]}_folders', None)
             STATE.write_text(json.dumps(st, indent=1))
             return self.json({'ok': True})
         if action == 'remove_root':
