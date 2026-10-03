@@ -1,6 +1,6 @@
 """DolphinWorks: the development hub (prototype).
 
-    Double-click "app\\DolphinWorks.bat" (or: python app/server.py)
+    Run app\\DolphinWorks.exe (or: python app/server.py)
 
 A local web app in its own window: this file serves the interface (app/ui) on 127.0.0.1 and does
 the work behind it -- finding the projects (every Octave project, .octp, under C:\\DolphinWorks\\Projects

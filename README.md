@@ -37,7 +37,7 @@ instead, see each component's repository.
 
 ### The DolphinWorks app (prototype)
 
-`app\DolphinWorks.exe` (or `app\DolphinWorks.bat`) opens the development hub: the Octave projects in `C:\DolphinWorks\Projects` and any folders
+`app\DolphinWorks.exe` opens the development hub: the Octave projects in `C:\DolphinWorks\Projects` and any folders
 added in Settings, each with
 **Build**, **Run in Dolphin** (Fast or Accurate), **Run on Hardware** (copies the disc image to an
 SD card for Swiss) and **Open in Editor**; the toolchain switch and build options; the USB Gecko
