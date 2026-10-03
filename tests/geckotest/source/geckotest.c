@@ -31,7 +31,9 @@ static void video_init(void)
 // the program froze, START included.) A few tries cover a PC that's reading but a little behind.
 static u32 dropped;
 
-// returns whether all of it got through (a PC is reading)
+// returns whether the Gecko took all of it. (Only that can be known here, not whether a program on the PC has
+// the port open: the Gecko's chip buffers a few hundred bytes, so it keeps taking data for a while after the
+// PC stops reading, and is "full" only then.)
 static bool send(s32 chn, const char *text)
 {
 	int len = strlen(text), done = 0;
@@ -111,12 +113,12 @@ int main(void)
 		{
 			count++;
 			snprintf(line, sizeof(line), "hello from the GameCube #%lu\r\n", (unsigned long)count);
-			bool heard = send(chn, line);
+			bool taken = send(chn, line);
 			printf("\x1b[10;0H  Sent: hello from the GameCube #%lu   \n", (unsigned long)count);
-			if (heard)
-				printf("\x1b[11;0H  PC: listening                                    \n");
+			if (taken)
+				printf("\x1b[11;0H  Gecko: taking data                                       \n");
 			else
-				printf("\x1b[11;0H  PC: not listening (%lu bytes dropped)            \n", (unsigned long)dropped);
+				printf("\x1b[11;0H  Gecko: full, nothing on the PC is reading (%lu dropped)   \n", (unsigned long)dropped);
 		}
 	}
 	return 0;
