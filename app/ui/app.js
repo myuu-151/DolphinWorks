@@ -649,6 +649,7 @@ const C = { project: null, data: null, open: null, editor: null, dirty: false, f
 const TEXT_EXT = ['.lua', '.cpp', '.c', '.h', '.hpp', '.inl', '.ini', '.md', '.json', '.py', '.txt', '.octp', '.glsl', '.bat'];
 const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.bmp', '.webp', '.tga'];
 const AUDIO_EXT = ['.wav', '.ogg', '.mp3', '.flac'];
+const MODEL_EXT = ['.glb', '.gltf', '.obj', '.blend'];
 const ext = (path) => (path.match(/\.[^./]+$/) || [''])[0].toLowerCase();
 const kb = (n) => n == null ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
@@ -676,7 +677,8 @@ async function loadContent(keepOpen = true) {
 }
 
 const assetOf = (path) => C.data && C.data.assets.find((a) => 'Raw/' + a.source === path);
-const sourceOf = (path) => C.data && C.data.assets.find((a) => a.path === path);
+const sourceOf = (path) => C.data && C.data.assets.find((a) => a.path === path || (a.outputs && a.path &&      // (a model's every part)
+  a.path.slice(0, a.path.lastIndexOf('/')) === path.slice(0, path.lastIndexOf('/')) && a.outputs.includes(path.split('/').pop().replace(/\.oct$/, ''))));
 const STATE = { ready: ['ok', 'ready'], changed: ['warn', 'changed'], new: ['new', 'new'] };
 
 function renderTree() {
@@ -690,7 +692,8 @@ function renderTree() {
     const a = assetOf(e.path), s = sourceOf(e.path);
     const badge = a ? `<span class="cbadge ${STATE[a.state][0]}" title="${esc(a.asset)}: ${STATE[a.state][1]}">${esc(a.asset)}</span>`
       : s ? `<span class="cbadge from" title="Made from Raw/${esc(s.source)}">from ${esc(s.source.split('/').pop())}</span>` : '';
-    const icon = IMAGE_EXT.includes(ext(e.path)) ? '▣' : AUDIO_EXT.includes(ext(e.path)) ? '♪' : ext(e.path) === '.oct' ? '◆'
+    const icon = IMAGE_EXT.includes(ext(e.path)) ? '▣' : AUDIO_EXT.includes(ext(e.path)) ? '♪' : MODEL_EXT.includes(ext(e.path)) ? '▲'
+      : ext(e.path) === '.oct' ? '◆'
       : TEXT_EXT.includes(ext(e.path)) ? '‹›' : '·';
     return `<div class="crow file${C.open === e.path ? ' sel' : ''}" data-file="${esc(e.path)}" ${pad}>
       <span class="cicon">${icon}</span><span class="cname">${esc(e.name)}</span>${badge}</div>`;
@@ -702,7 +705,17 @@ function renderPaneEmpty() {
   const n = C.data.assets.length, pending = C.data.assets.filter((a) => a.state !== 'ready').length;
   $('#cPane').innerHTML = `<div class="cwelcome"><h3>${esc(project().title)}</h3>
     <p>Pick a file on the left. Code opens here to edit (Ctrl+S saves); a picture or sound in Raw/ shows its asset and settings.</p>
-    <p class="muted">${n ? `${n} file${n > 1 ? 's' : ''} in Raw/${pending ? `, ${pending} to convert` : ', all converted'}.` : 'Nothing in Raw/ yet: drop art and sound anywhere on this page.'}</p></div>`;
+    <p class="muted">${n ? `${n} file${n > 1 ? 's' : ''} in Raw/${pending ? `, ${pending} to convert` : ', all converted'}.` : 'Nothing in Raw/ yet: drop art, sound or models anywhere on this page.'}</p>
+    ${C.data.tree.some((e) => e.path === 'build.py') ? '<p class="muted">build.py runs on every Build, after the assets.</p>'
+      : `<p><button class="btn" id="cBuildPy">+ Build step (build.py)</button></p>
+         <p class="muted">Python that runs on every Build, after Raw/ is converted: for what the game makes for itself, as Sonic Pipe Dream's scripts did (data as Lua tables, pictures cut or recoloured, levels from a file). Octave's octkit is there to import.</p>`}</div>`;
+  const b = $('#cBuildPy');
+  if (b) b.onclick = async () => {
+    const r = await api('/api/new_build_py', { id: project().id });
+    if (!r.ok) return toast(r.message);
+    await loadContent();
+    openFile(r.path);
+  };
 }
 
 async function openFile(path, quiet) {
@@ -719,7 +732,7 @@ async function openFile(path, quiet) {
     if (!r.ok) { pane.innerHTML = `<div class="empty">${esc(r.message)}</div>`; return; }
     pane.innerHTML = `<div class="ceditor-head"><b>${esc(path)}</b><span class="cdirty" id="cDirty"></span>
       <span class="spacer"></span><button class="btn small" id="cSave">Save</button>
-      <button class="btn small" id="cCode" title="Open in VS Code">VS Code</button>
+      <button class="btn small" id="cCode" title="Open it in VS Code, else Visual Studio (with Octave's headers and API set up)">Open in IDE</button>
       <button class="btn small primary" id="cRun" title="Save, build, run in Dolphin">Build ▸ Run</button></div>
       <div class="ceditor" id="cEditor"></div>`;
     const mode = e === '.lua' ? 'lua' : ['.cpp', '.c', '.h', '.hpp', '.inl', '.glsl'].includes(e) ? 'text/x-c++src' : null;
@@ -737,7 +750,11 @@ async function openFile(path, quiet) {
     });
     if (C.scroll[path]) C.editor.scrollTo(0, C.scroll[path]);
     $('#cSave').onclick = () => saveFile();
-    $('#cCode').onclick = async () => { const x = await api('/api/open_code', { id: p.id, path }); if (!x.ok) toast(x.message); };
+    $('#cCode').onclick = async () => {
+      if (C.dirty && !(await saveFile())) return;
+      const x = await api('/api/open_code', { id: p.id, path });
+      toast(x.ok ? `Opening it in ${x.editor}` : x.message);
+    };
     $('#cRun').onclick = async () => { if (await saveFile()) { await act('build'); C.runAfterBuild = true; } };
     if (!quiet) C.editor.focus();
     return;
@@ -761,8 +778,15 @@ function renderAssetPane(path, a, url) {
   const chk = (key) => `<input type="checkbox" data-set="${key}" ${s[key] ? 'checked' : ''}>`;
   const num = (key, step, min, max) => `<input type="number" data-set="${key}" value="${s[key]}" step="${step}" min="${min}" max="${max}">`;
   const preview = a.kind === 'texture' ? `<div class="cpreview"><img src="${url}&raw=1" alt=""></div>`
+    : a.kind === 'mesh' ? `<div class="cparts">${(a.outputs || []).length ? (a.outputs || []).map((o) => `<span class="cpart ${o.slice(0, 2)}">${esc(o)}</span>`).join('')
+                                                                              : '<span class="muted">Not converted yet.</span>'}</div>`
     : `<div class="cpreview audio"><audio controls src="${url}&raw=1"></audio></div>`;
-  const settings = a.kind === 'texture' ? `
+  const settings = a.kind === 'mesh' ? `
+      <dt>Scale</dt><dd>${num('scale', 0.1, 0.001, 1000)}</dd>
+      <dt>Lighting</dt><dd><label class="check">${chk('lit')} lit by the scene's lights</label></dd>
+      <dt>Faces</dt><dd>${sel('cull', [['back', 'Front only (back faces hidden)'], ['none', 'Both sides']])}</dd>
+      <dt>Textures</dt><dd>${sel('filter', [['linear', 'Linear (smooth)'], ['nearest', 'Nearest (pixel art)']])}</dd>`
+    : a.kind === 'texture' ? `
       <dt>Filter</dt><dd>${sel('filter', [['linear', 'Linear (smooth)'], ['nearest', 'Nearest (pixel art)']])}</dd>
       <dt>Wrap</dt><dd>${sel('wrap', [['repeat', 'Repeat'], ['clamp', 'Clamp'], ['mirror', 'Mirror']])}</dd>
       <dt>Mipmaps</dt><dd><label class="check">${chk('mipmaps')} smaller copies for when it's far away (3D)</label></dd>
@@ -781,18 +805,20 @@ function renderAssetPane(path, a, url) {
     ${preview}
     <dl class="kv casset-kv">
       <dt>Asset</dt><dd><input data-set="name" value="${esc(s.name)}" spellcheck="false"></dd>
-      <dt>In Lua</dt><dd><code id="cLuaLine">LoadAsset("${esc(s.name)}")</code> <button class="btn small" id="cCopyLua">Copy</button></dd>
+      <dt>In Lua</dt><dd><code id="cLuaLine">${a.kind === 'mesh' ? `node:SetStaticMesh(LoadAsset("${esc(a.asset)}"))` : `LoadAsset("${esc(s.name)}")`}</code>
+        <button class="btn small" id="cCopyLua">Copy</button></dd>
       ${settings}
       <dt>Size</dt><dd>${kb(a.source_size)} here${a.size ? ` · ${kb(a.size)} as an asset (before the console cook)` : ''}</dd>
     </dl>
-    <p class="note">${a.kind === 'texture' ? 'The GameCube format is chosen when it builds, from the picture\'s transparency: none, cut-out, or smooth.'
+    <p class="note">${a.kind === 'mesh' ? `A mesh for each of its materials (SM_…), each material (M_…), and a texture for each picture in it (T_…), its scene baked flat. ${ext(path) === '.blend' ? 'Read by Blender itself (Packages), exported as glTF.' : ''}`
+      : a.kind === 'texture' ? 'The GameCube format is chosen when it builds, from the picture\'s transparency: none, cut-out, or smooth.'
       : s.mode === 'music' ? 'Music is Vorbis, made at this quality, and streamed from the disc as it plays: it costs almost no memory.'
       : 'A sound effect is kept as 16-bit PCM in memory, so it starts the instant it\'s played.'}</p></div>`;
   pane.querySelectorAll('[data-set]').forEach((el) => el.onchange = async () => {
     const key = el.dataset.set;
     let value = el.type === 'checkbox' ? el.checked : el.value;
     if (['downsample', 'rate', 'max_instances', 'quality'].includes(key)) value = parseInt(value, 10);
-    if (['volume', 'pitch'].includes(key)) value = parseFloat(value);
+    if (['volume', 'pitch', 'scale'].includes(key)) value = parseFloat(value);
     const r = await api('/api/asset_settings', { id: project().id, source: a.source, settings: { [key]: value } });
     if (!r.ok) return toast(r.message);
     await loadContent();

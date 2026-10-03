@@ -85,7 +85,11 @@ def read_api(octave):
                 i += 1
             body = text[bind.end():i]
             meta = METATABLE.search(body)
+            plain = re.search(r'luaL_newmetatable\(\s*L\s*,\s*(\w+)\s*\)', body)    # (a class with no parent: World)
             klass = None
+            if not meta and plain:
+                klass = names.get(plain.group(1), cls)
+                api['classes'].setdefault(klass, {'parent': None, 'methods': {}})
             if meta:
                 klass = names.get(meta.group(1), cls)
                 parent = names.get(meta.group(2)) if meta.group(2) not in ('nullptr', 'NULL') else None

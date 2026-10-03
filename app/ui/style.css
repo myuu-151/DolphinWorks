@@ -125,6 +125,9 @@ li.CodeMirror-hint-active { background: #23395b; color: #fff; }
   border: 1px solid var(--line2); border-radius: 8px; background: repeating-conic-gradient(#151b24 0 25%, #10151c 0 50%) 0 0 / 20px 20px; }
 .cpreview img { max-width: 100%; max-height: 270px; image-rendering: auto; }
 .cpreview.audio { min-height: 70px; background: #10141b; }
+.cparts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.cpart { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--line2); font: 12.5px Consolas, monospace; background: #10141b; }
+.cpart.SM { color: #ffcb6b; } .cpart.M_ { color: #c792ea; } .cpart.T_ { color: #82aaff; }
 .casset-kv { grid-template-columns: 110px 1fr; row-gap: 10px; }
 .casset-kv dd { white-space: normal; overflow: visible; }
 .casset-kv input:not([type=checkbox]), .casset-kv select { width: min(320px, 100%); }

@@ -588,9 +588,98 @@ end
 """
 
 
+def run_build_py(project):
+    """The project's own build step, build.py, if it has one: Python, with octkit importable. True if it passed."""
+    folder = project_folder(project)
+    script = folder / 'build.py'
+    if not script.exists():
+        return True
+    octave = find_octave()
+    JOBS.emit('progress', step='build.py')
+    JOBS.emit('line', text='Running build.py', level='info')
+    env = dict(os.environ, PROJECT=str(folder), OCTAVE=str(octave or ''), PYTHONUNBUFFERED='1',
+               PYTHONPATH=os.pathsep.join(filter(None, [str(octave / 'Tools') if octave else '', os.environ.get('PYTHONPATH', '')])))
+    python = Path(sys.executable)
+    if python.name.lower() == 'pythonw.exe' and (python.parent / 'python.exe').exists():
+        python = python.parent / 'python.exe'                       # (output to read)
+    ok = run_logged([str(python), str(script)], folder, env)
+    if not ok:
+        JOBS.emit('line', text='build.py failed: the lines above say why. The build stopped.', level='error')
+    return ok
+
+
+def find_blender():
+    for root in (Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Blender Foundation',
+                 Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Blender Foundation'):
+        found = sorted(root.glob('*/blender.exe')) if root.is_dir() else []
+        if found:
+            return found[-1]
+    return None
+
+
+def find_visual_studio():
+    """devenv.exe of the newest Visual Studio, or None."""
+    vs = visual_studio()
+    if vs and vs[1]:
+        devenv = Path(vs[1]) / 'Common7' / 'IDE' / 'devenv.exe'
+        return devenv if devenv.exists() else None
+    return None
+
+
+def write_code_settings(project):
+    """What an editor needs to know about an Octave game's code: for C++, where Octave's and libogc's headers
+    are and the GameCube's defines -- Visual Studio's CppProperties.json, VS Code's .vscode/c_cpp_properties.json;
+    for Lua (VS Code), Octave's API as annotations (.vscode/octave_api.lua) for its Lua extension."""
+    folder = project_folder(project)
+    octave = find_octave()
+    dkp = chosen_toolchain()
+    includes = ['${workspaceRoot}/Source']
+    if octave:
+        includes += [(octave / x).as_posix() for x in ('Engine/Source', 'Engine/Source/Engine', 'External', 'External/Bullet')]
+    if dkp:
+        includes += [(dkp / x).as_posix() for x in ('libogc/include', 'devkitPPC/powerpc-eabi/include')]
+    defines = ['PLATFORM_GAMECUBE=1', 'PLATFORM_DOLPHIN=1', 'API_GX=1', 'GEKKO=1', 'LUA_ENABLED=1']
+    if (folder / 'Source').is_dir():
+        (folder / 'CppProperties.json').write_text(json.dumps({'configurations': [
+            {'name': 'GameCube', 'includePath': includes, 'defines': defines, 'intelliSenseMode': 'linux-gcc-x86'}]}, indent=2) + '\n')
+    vscode = folder / '.vscode'
+    vscode.mkdir(exist_ok=True)
+    (vscode / 'c_cpp_properties.json').write_text(json.dumps({'version': 4, 'configurations': [
+        {'name': 'GameCube', 'includePath': [i.replace('${workspaceRoot}', '${workspaceFolder}') for i in includes],
+         'defines': defines, 'cStandard': 'c11', 'cppStandard': 'gnu++20', 'intelliSenseMode': 'linux-gcc-x86'}]}, indent=2) + '\n')
+    api = lua_api()
+    lines = ['---@meta', '-- Octave\'s Lua API, read from the installed engine by DolphinWorks (made again each time it opens the code).']
+    for name, values in api['enums'].items():
+        lines.append(f'{name} = {{ ' + ', '.join(f'{v} = 0' for v in values) + ' }')
+    for name, funcs in api['tables'].items():
+        lines.append(f'{name} = {{}}')
+        for f, info in funcs.items():
+            args = [a.rstrip('?') for a in info['args']]
+            if info.get('doc'):
+                lines.append('--- ' + info['doc'][:300])
+            lines.append(f'function {name}.{f}({", ".join(args)}) end')
+    for cls, c in api['classes'].items():
+        lines.append(f'---@class {cls}' + (f' : {c["parent"]}' if c.get('parent') else ''))
+        lines.append(f'{cls} = {{}}')
+        for f, info in c['methods'].items():
+            lines.append(f'function {cls}:{f}({", ".join(a.rstrip("?") for a in info["args"])}) end')
+    for f, info in api['globals'].items():
+        lines.append(f'function {f}({", ".join(a.rstrip("?") for a in info["args"])}) end')
+    (vscode / 'octave_api.lua').write_text('\n'.join(lines) + '\n')
+    settings_file = vscode / 'settings.json'
+    try:
+        settings = json.loads(settings_file.read_text())
+    except (OSError, ValueError):
+        settings = {}
+    settings.setdefault('Lua.workspace.library', ['.vscode/octave_api.lua'])
+    settings.setdefault('Lua.runtime.version', 'Lua 5.4')
+    settings.setdefault('Lua.diagnostics.globals', ['self'])
+    settings_file.write_text(json.dumps(settings, indent=2) + '\n')
+
+
 def find_vscode():
     for candidate in (Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Microsoft VS Code' / 'bin' / 'code.cmd',
-                      Path(r'C:\Program Files\Microsoft VS Code\bin\code.cmd')):
+                      Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Microsoft VS Code' / 'bin' / 'code.cmd'):
         if candidate.exists():
             return candidate
     found = shutil.which('code')
@@ -897,6 +986,8 @@ def build(project, options):
     engine_warning()
     if not convert_assets(project):
         JOBS.emit('line', text='Build stopped: an asset failed to convert (above).', level='error')
+        return False
+    if not run_build_py(project):
         return False
     JOBS.emit('progress', step='packaging the assets')
     start = time.time()
@@ -1256,6 +1347,7 @@ def other_packages():
     """Python and the rest, checked once a minute at most (Visual Studio's check takes a moment)."""
     if time.time() - PACKAGES_CACHE.get('at', 0) > 60:
         vs, vk, ftdi = visual_studio(), vulkan_sdk(), ftdi_driver()
+        blender, vscode = find_blender(), find_vscode()
         pil, np = python_package('pillow'), python_package('numpy')
         PACKAGES_CACHE.update(at=time.time(), list=[
             {'name': 'Python 3', 'group': 'required', 'ok': True, 'where': f'{sys.version.split()[0]}: {Path(sys.executable).parent}',
@@ -1268,6 +1360,11 @@ def other_packages():
              'purpose': 'Building the engine from source', 'link': 'https://visualstudio.microsoft.com/'},
             {'name': 'Vulkan SDK', 'group': 'optional', 'ok': bool(vk), 'where': ': '.join(vk) if vk else '',
              'purpose': 'Building the engine from source', 'link': 'https://vulkan.lunarg.com/sdk/home#windows'},
+            {'name': 'Blender', 'group': 'optional', 'ok': bool(blender), 'where': str(blender.parent) if blender else '',
+             'purpose': "Models as .blend files (the Content page's Raw/)", 'link': 'https://www.blender.org/download/'},
+            {'name': 'VS Code', 'group': 'optional', 'ok': bool(vscode), 'where': str(vscode.parents[1]) if vscode else '',
+             'purpose': 'Editing code with Lua autocomplete (else Visual Studio, or the Content page)',
+             'link': 'https://code.visualstudio.com/'},
             {'name': 'USB Gecko driver (FTDI)', 'group': 'optional', 'ok': ftdi[0], 'where': ftdi[1],
              'purpose': 'The USB Gecko as a COM port', 'link': 'https://ftdichip.com/drivers/vcp-drivers/'},
         ])
@@ -1526,12 +1623,28 @@ class Handler(BaseHTTPRequestHandler):
             return self.json({'ok': JOBS.start(f'Convert {project["title"]}\'s assets',
                                                lambda: convert_assets(project, bool(body.get('all')))), 'busy': JOBS.busy})
         if action == 'open_code' and project:
-            code = find_vscode()
-            if not code:
-                return self.json({'ok': False, 'message': 'No VS Code found: install it (code.visualstudio.com), or edit here.'})
-            target = project_file(project, body.get('path', '')) if body.get('path') else project_folder(project)
-            launch(['cmd', '/c', str(code), str(project_folder(project)), str(target)], cwd=project_folder(project))
-            return self.json({'ok': True})
+            folder = project_folder(project)
+            target = project_file(project, body.get('path', '')) if body.get('path') else None
+            write_code_settings(project)
+            code, devenv = find_vscode(), find_visual_studio()
+            if code:
+                launch(['cmd', '/c', str(code), str(folder)] + ([str(target)] if target else []), cwd=folder)
+                return self.json({'ok': True, 'editor': 'VS Code'})
+            if devenv:
+                # a file: into Visual Studio (the open one, if there is); the folder: Open Folder, with IntelliSense
+                launch([str(devenv), '/Edit', str(target)] if target else [str(devenv), str(folder)], cwd=folder)
+                return self.json({'ok': True, 'editor': 'Visual Studio'})
+            return self.json({'ok': False, 'message': 'No VS Code or Visual Studio found: edit it here, or install one.'})
+        if action == 'new_build_py' and project:
+            path = project_folder(project) / 'build.py'
+            if path.exists():
+                return self.json({'ok': False, 'message': 'build.py is there already.'})
+            octave = find_octave()
+            template = octave / 'Template' / 'build.py' if octave else None
+            if not template or not template.exists():
+                return self.json({'ok': False, 'message': "This Octave's Template has no build.py: update it (Engine page)."})
+            path.write_text(template.read_text().replace('OctTemplate', project['title']), newline='\n')
+            return self.json({'ok': True, 'path': 'build.py'})
         if action == 'new_project':
             try:
                 octp = new_project(str(body.get('name', '')).strip(), body.get('kind'), body.get('where') or str(DEFAULT_ROOTS[0]))
