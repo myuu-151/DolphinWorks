@@ -50,6 +50,7 @@ Forks of the toolchain's components are maintained to keep their sources availab
 | devkitPPC build scripts | [myuu-151/buildscripts](https://github.com/myuu-151/buildscripts) |
 | GCC | [myuu-151/gcc](https://github.com/myuu-151/gcc) |
 | newlib | [myuu-151/newlib](https://github.com/myuu-151/newlib) |
+| GDB and binutils | [myuu-151/binutils-gdb](https://github.com/myuu-151/binutils-gdb) |
 | Swiss | [myuu-151/swiss-gc-libogc](https://github.com/myuu-151/swiss-gc-libogc) |
 
 ---
