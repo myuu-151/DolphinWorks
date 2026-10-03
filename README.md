@@ -1,4 +1,4 @@
-# OpenGC
+# GC Suite
 
 An open-source development suite for Nintendo GameCube
 > **In active development.** To report a bug, open an issue on the relevant project's repository.
