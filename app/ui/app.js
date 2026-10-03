@@ -37,7 +37,7 @@ const image = (p, kind) => `/api/image?id=${p.id}&kind=${kind}&v=${encodeURIComp
 async function refresh() {
   state = await api('/api/state');
   if (!state.projects.find((p) => p.id === selected)) {
-    const saved = state.projects.find((p) => p.octp === state.selected);
+    const saved = state.projects.find((p) => (p.octp || p.iso) === state.selected);
     selected = (saved || state.projects[0] || {}).id ?? null;
   }
   render();
@@ -59,7 +59,7 @@ function renderList() {
       ${p.banner ? `<div class="pthumb" style="background-image:url('${image(p, 'banner')}')"></div>`
                  : `<div class="pthumb">${esc(p.title[0] || '?')}</div>`}
       <div style="min-width:0"><div class="ptitle">${esc(p.title)}</div>
-        <div class="pmeta">${p.folder ? esc(p.folder) : 'GameCube · ISO · ' + (p.engine.includes('custom') ? 'Custom code' : 'Octave Engine')}</div></div>
+        <div class="pmeta">${p.folder ? esc(p.folder) : 'GameCube · ISO · ' + (!p.octp ? 'Disc image' : p.engine.includes('custom') ? 'Custom code' : 'Octave Engine')}</div></div>
     </div>`).join('') || '<div class="empty">No projects found.</div>';
 }
 
@@ -76,10 +76,10 @@ function renderDetail() {
       <button class="btn" data-act="folder">${ICONS.folder} Open Folder</button></div>
     <div class="tags"><span class="tag">GameCube</span><span class="tag">ISO</span><span class="tag">${esc(p.engine)}</span></div>
     <div class="actions">
-      <button class="action blue" data-act="build" ${busy ? 'disabled' : ''}>${ICONS.build}<div><b>Build</b><span>Disc image</span></div></button>
+      <button class="action blue" data-act="build" ${busy || !p.octp ? 'disabled' : ''} ${p.octp ? '' : 'title="A disc image on its own: nothing to build"'}>${ICONS.build}<div><b>Build</b><span>Disc image</span></div></button>
       <button class="action green" data-act="run" ${p.built ? '' : 'disabled'}>${ICONS.run}<div><b>Run in Dolphin</b><span>${esc(state.profile)} profile</span></div></button>
       <button class="action purple" data-act="deploy" ${p.built && !busy ? '' : 'disabled'}>${ICONS.pad}<div><b>Run on Hardware</b><span>Via SD card</span></div></button>
-      <button class="action gray" data-act="editor">${ICONS.edit}<div><b>Open in Editor</b><span>Octave</span></div></button>
+      <button class="action gray" data-act="editor" ${p.octp ? '' : 'disabled'}>${ICONS.edit}<div><b>Open in Editor</b><span>Octave</span></div></button>
     </div>
     <div class="info-row">
       <div class="subcard"><h3>Project Details</h3><dl class="kv">
@@ -339,7 +339,7 @@ function bind() {
     const item = e.target.closest('.pitem');
     if (!item) return;
     selected = item.dataset.id;
-    api('/api/settings', { selected: project().octp });
+    api('/api/settings', { selected: project().octp || project().iso });
     render();
   };
   document.body.addEventListener('click', (e) => {

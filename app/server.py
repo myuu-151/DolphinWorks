@@ -291,6 +291,46 @@ def disc_image(octp, name):
     return max(found, key=lambda p: p.stat().st_mtime) if found else packaged
 
 
+def gamecube_disc_name(iso):
+    """The name in a GameCube disc image's header, or None if it isn't one (no GameCube magic)."""
+    try:
+        with open(iso, 'rb') as f:
+            head = f.read(0x60)
+    except OSError:
+        return None
+    if len(head) < 0x60 or head[0x1C:0x20] != b'\xc2\x33\x9f\x3d':
+        return None
+    return head[0x20:0x60].split(b'\0', 1)[0].decode('latin-1').strip() or iso.stem
+
+
+def scan_disc_images(roots, projects):
+    """GameCube disc images that aren't a project's own (homebrew, tests): listed to run in Dolphin or put on
+    an SD card; no Build, no editor."""
+    inside = [Path(p['root']).resolve() for p in projects]
+    seen, found = set(), []
+    for base in roots:
+        if not base.is_dir():
+            continue
+        for depth in ('*.iso', '*/*.iso', '*/*/*.iso'):
+            for iso in base.glob(depth):
+                key = str(iso.resolve()).lower()
+                if key in seen or BUILD_OUTPUT.search(str(iso)) or any(iso.resolve().is_relative_to(r) for r in inside):
+                    continue
+                seen.add(key)
+                title = gamecube_disc_name(iso)
+                if not title:
+                    continue
+                stat = iso.stat()
+                found.append({
+                    'id': '', 'name': iso.stem, 'title': title, 'octp': None, 'kind': 'disc',
+                    'root': str(iso.parent), 'iso': str(iso), 'built': True,
+                    'last_build': time.strftime('%Y-%m-%d %H:%M', time.localtime(stat.st_mtime)),
+                    'size_mb': round(stat.st_size / 2**20, 1), 'banner': None, 'screenshot': None,
+                    'builder': None, 'engine': 'Disc image', 'modified': stat.st_mtime,
+                })
+    return found
+
+
 def scan_projects():
     seen, projects = set(), []
     roots = project_roots()
@@ -326,6 +366,7 @@ def scan_projects():
             'engine': 'Octave Engine' + (' + custom code' if (octp.parent / 'Source').is_dir() else ''),
             'modified': max(octp.stat().st_mtime, iso.stat().st_mtime if iso.exists() else 0),
         })
+    projects.extend(scan_disc_images(roots, projects))
     projects.sort(key=lambda p: -p['modified'])
     # the same title twice (a clone, the PC version): each told apart by its folder
     titles = [p['title'] for p in projects]
@@ -758,7 +799,7 @@ class Handler(BaseHTTPRequestHandler):
             save_state(project_roots=roots, hidden_roots=hidden)
             PROJECTS = scan_projects()
             return self.json({'ok': True})
-        if action == 'build' and project:
+        if action == 'build' and project and project.get('octp'):          # (a disc image alone has nothing to build)
             ok = JOBS.start(f'Build {project["title"]}', lambda: build(project, body))
             return self.json({'ok': ok, 'busy': JOBS.busy})
         if action == 'run' and project:
@@ -781,7 +822,7 @@ class Handler(BaseHTTPRequestHandler):
                     args += ['-u', str(dolphin / ('User-Accurate' if body.get('profile') == 'Accurate' else 'User'))]
                 launch(args, cwd=dolphin)
             return self.json({'ok': bool(dolphin)})
-        if action == 'editor' and project:
+        if action == 'editor' and project and project.get('octp'):
             octave = find_octave()
             if not octave:
                 return self.json({'ok': False, 'message': 'No Octave-libogc: install it with dolphinworks.bat.'})
