@@ -8,7 +8,11 @@ Into one folder (C:\\DolphinWorks unless another is chosen), each part a tick bo
 - the GameCube toolchain: gekko-toolchain's latest release, unzipped, and DEVKITPRO and DEVKITPPC
   pointed at it as its Install.bat does (left unticked when devkitPro or gekko-toolchain is there);
 - the engine: Octave-libogc's latest release, built, unzipped -- or its source, cloned, with its
-  own builder opened to build it.
+  own builder opened to build it;
+- the emulator: Dolphin (the official build DolphinWorks hosts: dolphin-emu.org doesn't allow
+  scripted downloads), portable, with two profiles -- Fast, for everyday testing, and Accurate,
+  as close to the console as Dolphin goes -- and a launcher for each (Dolphin.bat,
+  "Dolphin (Accurate).bat").
 
 Visual Studio and the Vulkan SDK, needed only to build the engine from source, are large
 installers of their own: the window says whether they're there and links to them.
@@ -38,6 +42,43 @@ SETTINGS = Path(__file__).with_name('.setup.json')            # (not in git)
 DEFAULT_ROOT = Path(r'C:\DolphinWorks')
 TOOLCHAIN_REPO, ENGINE_REPO = 'myuu-151/gekko-toolchain', 'myuu-151/Octave-Libogc'
 PACKAGES = ('pillow', 'numpy')
+DOLPHINWORKS_REPO = 'myuu-151/DolphinWorks'      # its releases tagged dolphin-* hold the emulator
+
+# Dolphin's settings, added to its own (what's set otherwise is kept). Both profiles: the real DSP
+# microcode (HLE freezes libasnd games), a USB Gecko in slot B for live logs (slot A keeps the
+# memory card), no analytics prompt, no update check (the version stays the one installed).
+DOLPHIN_COMMON = {
+    'Dolphin.ini': {
+        'Core': {'DSPHLE': 'False', 'SlotB': '7'},
+        'DSP': {'EnableJIT': 'True', 'DSPThread': 'True'},
+        'Analytics': {'Enabled': 'False', 'PermissionAsked': 'True'},
+        'AutoUpdate': {'UpdateTrack': ''},
+        'Interface': {'UsePanicHandlers': 'False'},
+    },
+}
+# Fast: everyday testing. Dual core, the disc at full speed, normal game speed.
+DOLPHIN_FAST = {
+    'Dolphin.ini': {'Core': {'CPUThread': 'True', 'FastDiscSpeed': 'True', 'EmulationSpeed': '1'}},
+}
+# Accurate: as close to the console as Dolphin goes (Octave-libogc's Documentation/AI/
+# GameCubeDosAndDonts.md, "Hardware-true Dolphin"). Several times slower. Not MMU: libogc's
+# start-up reads address 0x28, which Dolphin's MMU emulation takes for a crash.
+DOLPHIN_ACCURATE = {
+    'Dolphin.ini': {'Core': {
+        'CPUThread': 'False', 'AccurateCPUCache': 'True', 'Fastmem': 'False', 'FPRF': 'True',
+        'AccurateNaNs': 'True', 'EmulationSpeed': '1', 'FastDiscSpeed': 'False',
+        'OverclockEnable': 'False', 'RAMOverrideEnable': 'False', 'MMU': 'False'}},
+    'GFX.ini': {
+        'Hacks': {'EFBAccessEnable': 'True', 'EFBToTextureEnable': 'False', 'XFBToTextureEnable': 'False',
+                  'DeferEFBCopies': 'False', 'ImmediateXFBEnable': 'False', 'SkipDuplicateXFBs': 'False',
+                  'EFBEmulateFormatChanges': 'True', 'BBoxEnable': 'True'},
+        'Settings': {'SafeTextureCacheColorSamples': '0', 'FastDepthCalc': 'False'},
+    },
+}
+DOLPHIN_LAUNCHERS = {
+    'Dolphin.bat': ('Fast', 'User'),
+    'Dolphin (Accurate).bat': ('Accurate: as close to the console as Dolphin goes, several times slower', 'User-Accurate'),
+}
 NO_WINDOW, LOW_PRIORITY = 0x08000000, 0x4000
 # For testing only: DOLPHINWORKS_NO_ENV=1 leaves the user's environment variables alone.
 TOUCH_ENV = not os.environ.get('DOLPHINWORKS_NO_ENV')
@@ -111,6 +152,59 @@ def engine_version(folder):
         return 'built here'
 
 
+def dolphin_version(folder):
+    """The Dolphin build setup installed (.dolphinworks-release), or None."""
+    folder = Path(folder)
+    if not (folder / 'Dolphin.exe').exists():
+        return None
+    try:
+        return (folder / '.dolphinworks-release').read_text().strip()
+    except OSError:
+        return 'installed'
+
+
+def dolphin_release():
+    """(tag, asset name, URL, size) of the newest DolphinWorks release holding Dolphin."""
+    with urllib.request.urlopen(f'https://api.github.com/repos/{DOLPHINWORKS_REPO}/releases', timeout=60) as r:
+        releases = json.load(r)
+    release = next(x for x in releases if x['tag_name'].startswith('dolphin-'))
+    asset = next(a for a in release['assets'] if a['name'].endswith('.zip'))
+    return release['tag_name'], asset['name'], asset['browser_download_url'], asset['size']
+
+
+def set_ini(path, values):
+    """Dolphin's ini file with these sections' keys set, everything else in it kept."""
+    lines = path.read_text(encoding='utf-8').splitlines() if path.exists() else []
+    out, section, done = [], None, {s: set() for s in values}
+
+    def flush(sec):
+        for key, value in values.get(sec, {}).items():
+            if key not in done.get(sec, set()):
+                out.append(f'{key} = {value}')
+                done[sec].add(key)
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            flush(section)
+            section = stripped[1:-1]
+            out.append(line)
+            continue
+        key = stripped.split('=', 1)[0].strip() if '=' in stripped else None
+        if section in values and key in values[section]:
+            out.append(f'{key} = {values[section][key]}')
+            done[section].add(key)
+        else:
+            out.append(line)
+    flush(section)
+    for sec in values:
+        if done[sec] != set(values[sec]):
+            out.append(f'[{sec}]')
+            flush(sec)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('\n'.join(out) + '\n', encoding='utf-8')
+
+
 def missing_packages():
     missing = []
     for name, module in (('pillow', 'PIL'), ('numpy', 'numpy')):
@@ -179,7 +273,7 @@ class Setup:
         except (OSError, ValueError):
             settings = {}
         self.folder = tk.StringVar(value=settings.get('folder', str(DEFAULT_ROOT)))
-        self.want = {k: tk.BooleanVar(value=True) for k in ('packages', 'toolchain', 'engine')}
+        self.want = {k: tk.BooleanVar(value=True) for k in ('packages', 'toolchain', 'engine', 'dolphin')}
         self.from_source = tk.BooleanVar(value=False)
         self.verbose = tk.BooleanVar(value=False)
 
@@ -198,7 +292,8 @@ class Setup:
         self.notes = {}
         for key, title in (('packages', 'Python packages: Pillow and numpy'),
                            ('toolchain', 'GameCube toolchain: gekko-toolchain'),
-                           ('engine', 'Engine: Octave-libogc')):
+                           ('engine', 'Engine: Octave-libogc'),
+                           ('dolphin', 'Emulator: Dolphin (Fast and Accurate)')):
             row = ttk.Frame(parts)
             row.pack(fill='x', padx=6, pady=2)
             ttk.Checkbutton(row, text=title, variable=self.want[key], width=38,
@@ -256,6 +351,7 @@ class Setup:
         self.packages_missing = missing_packages()
         self.toolchain = existing_toolchain(root)
         self.engine = engine_version(root / 'Octave-libogc')
+        self.dolphin = dolphin_version(root / 'Dolphin')
         self.vs, self.git = find_vs(), shutil.which('git')
         sdk = os.environ.get('VULKAN_SDK') or user_env('VULKAN_SDK') or machine_env('VULKAN_SDK')
         self.vulkan = sdk if sdk and (Path(sdk) / 'Bin' / 'glslc.exe').exists() else None
@@ -263,6 +359,7 @@ class Setup:
             self.want['packages'].set(bool(self.packages_missing))
             self.want['toolchain'].set(self.toolchain is None)
             self.want['engine'].set(self.engine is None)
+            self.want['dolphin'].set(self.dolphin is None)
         self.check()
 
     def check(self):
@@ -281,6 +378,11 @@ class Setup:
                                        + ('; to update' if self.want['engine'].get() else ''))
         else:
             n['engine'].configure(text=('to clone and build in ' if source else 'to install into ') + str(root / 'Octave-libogc'))
+        if self.dolphin:
+            n['dolphin'].configure(text=f'there already: {self.dolphin} ({root / "Dolphin"})'
+                                        + ('; to update' if self.want['dolphin'].get() else ''))
+        else:
+            n['dolphin'].configure(text=f'to install into {root / "Dolphin"}, with Dolphin.bat and "Dolphin (Accurate).bat"')
         for key, value, missing in (('vs', self.vs, 'not installed'), ('vulkan', self.vulkan, 'not installed'),
                                     ('git', self.git, 'not installed')):
             mark, note = self.extra_notes[key]
@@ -502,10 +604,41 @@ class Setup:
         self.say(f'Octave-libogc {tag}: {folder}')
         return True
 
+    def dolphin_step(self, root):
+        tag, name, url, size = dolphin_release()
+        folder = root / 'Dolphin'
+        if dolphin_version(folder) != tag:
+            self.lines.put(('step', f'downloading {tag}'))
+            archive = root / name
+            self.download(url, size, archive)
+            self.lines.put(('step', 'unpacking it'))
+            self.unzip(archive, root)                      # (the zip holds Dolphin/)
+            archive.unlink()
+            (folder / '.dolphinworks-release').write_text(tag + '\n')
+        # portable: its settings in its own folder, not the user's Documents
+        (folder / 'portable.txt').write_text('')
+        self.lines.put(('step', 'setting up its profiles'))
+        for profile, user in ((DOLPHIN_FAST, 'User'), (DOLPHIN_ACCURATE, 'User-Accurate')):
+            config = folder / user / 'Config'
+            for ini in set(DOLPHIN_COMMON) | set(profile):
+                values = {}
+                for source in (DOLPHIN_COMMON.get(ini, {}), profile.get(ini, {})):
+                    for section, keys in source.items():
+                        values.setdefault(section, {}).update(keys)
+                set_ini(config / ini, values)
+        for name, (what, user) in DOLPHIN_LAUNCHERS.items():
+            (root / name).write_text(
+                f'@echo off\r\nrem Dolphin, {what}.\r\n'
+                f'start "" "%~dp0Dolphin\\Dolphin.exe" -u "%~dp0Dolphin\\{user}" %*\r\n', encoding='utf-8',
+                newline='')                                 # (the \r\n as written, not doubled)
+        self.say(f'Dolphin {tag[len("dolphin-"):]}: {folder}; Dolphin.bat (Fast) and "Dolphin (Accurate).bat"')
+        return True
+
     def run_install(self, root, want, from_source):
         steps = [('packages', 'Python packages', self.packages),
                  ('toolchain', 'GameCube toolchain', lambda: self.toolchain_step(root)),
-                 ('engine', 'Engine', lambda: self.engine_step(root, from_source))]
+                 ('engine', 'Engine', lambda: self.engine_step(root, from_source)),
+                 ('dolphin', 'Emulator', lambda: self.dolphin_step(root))]
         ok = True
         for key, phase, step in steps:
             if not want[key]:
