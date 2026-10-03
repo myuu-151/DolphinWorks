@@ -164,6 +164,13 @@ select:disabled { opacity: .7; }
 .table { width: 100%; border-collapse: collapse; }
 .table td, .table th { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13.5px; }
 .table th { color: var(--muted); font-weight: 500; }
+#settingsCard .table { table-layout: fixed; }
+#settingsCard .table th { width: 110px; vertical-align: top; padding-top: 13px; }
+#settingsCard .table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roots { display: flex; flex-direction: column; gap: 6px; }
+.root { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.root-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roots-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 
 /* --- log --- */
 .log-panel { flex: none; height: 180px; display: flex; flex-direction: column; min-height: 0; }

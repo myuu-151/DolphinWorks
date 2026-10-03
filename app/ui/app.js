@@ -134,7 +134,13 @@ function renderPages() {
     ${row('Emulator (Dolphin)', state.dolphin, state.dolphin && `${state.dolphin.version}: ${state.dolphin.path}`)}
     </table>`;
   $('#settingsCard').innerHTML = `<table class="table">
-    <tr><th>Projects</th><td>${state.projects.length} found under Documents and C:\\DolphinWorks\\Projects</td></tr>
+    <tr><th>Projects</th><td>
+      <div class="roots">${(state.project_roots || []).map((r) => `<div class="root">
+        <span class="root-path${r.exists ? '' : ' muted'}">${esc(r.path)}</span>
+        ${r.default ? '<span class="muted">default</span>'
+                    : `<button class="btn small" data-remove-root="${esc(r.path)}">Remove</button>`}</div>`).join('')}</div>
+      <div class="roots-foot"><button class="btn small" id="addRoot">+ Add folder...</button>
+        <span class="muted">${state.projects.length} projects found</span></div></td></tr>
     <tr><th>Toolchain</th><td>${esc(state.toolchain || 'none')}</td></tr>
     <tr><th>Engine</th><td>${esc(state.octave || 'none')}</td></tr>
     <tr><th>Dolphin</th><td>${esc(state.dolphin ? state.dolphin.path : 'none')}</td></tr></table>
@@ -211,6 +217,20 @@ function bind() {
     const b = e.target.closest('[data-act]');
     if (b && !b.disabled) act(b.dataset.act);
   });
+  // Settings: the folders searched for projects
+  $('#settingsCard').addEventListener('click', async (e) => {
+    if (e.target.closest('#addRoot')) {
+      const res = await api('/api/add_root', {});
+      if (res.ok) { await refresh(); toast(`Added ${res.path}: ${state.projects.length} projects`); }
+      else if (!res.cancelled) toast(res.message || 'That did not work.');
+    }
+    const rm = e.target.closest('[data-remove-root]');
+    if (rm) {
+      await api('/api/remove_root', { path: rm.dataset.removeRoot });
+      await refresh();
+      toast(`${state.projects.length} projects`);
+    }
+  });
   $('#search').oninput = renderList;
   $('#rescan').onclick = async () => { await api('/api/rescan', {}); await refresh(); toast(`${state.projects.length} projects`); };
   $('#toolchain').onchange = (e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };
@@ -232,5 +252,7 @@ function bind() {
 }
 
 bind();
+const startPage = new URLSearchParams(location.search).get('page');       // ?page=settings opens on that page
+if (startPage) $(`.nav[data-page="${startPage}"]`)?.click();
 if (!location.search.includes('snapshot')) listen();      // (a still picture of the page: no live events)
 refresh().then(async () => (await api('/api/history')).forEach(logLine));

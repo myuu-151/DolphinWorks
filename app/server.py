@@ -193,9 +193,23 @@ def find_art(root):
     return banner, screenshot
 
 
+def project_roots():
+    """The folders searched for projects: the two defaults, then the user's own."""
+    return [DOCUMENTS, DW_ROOT / 'Projects', *map(Path, load_state().get('project_roots', []))]
+
+
+def pick_folder():
+    """Windows' folder picker (Tk's, in a process of its own so it never blocks the server)."""
+    code = ('import tkinter, tkinter.filedialog as fd; r = tkinter.Tk(); r.withdraw(); '
+            'r.attributes("-topmost", True); '
+            'print(fd.askdirectory(parent=r, title="Choose a folder with Octave projects", mustexist=True) or "")')
+    out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, creationflags=NO_WINDOW)
+    return out.stdout.strip() or None
+
+
 def scan_projects():
     seen, projects = set(), []
-    roots = [DOCUMENTS, DW_ROOT / 'Projects', *map(Path, load_state().get('project_roots', []))]
+    roots = project_roots()
     extra = [Path(p) for p in load_state().get('projects', [])]
     candidates = list(extra)
     for base in roots:
@@ -408,6 +422,7 @@ def state_payload():
     return {
         'version': VERSION,
         'projects': PROJECTS,
+        'project_roots': [{'path': str(p), 'default': i < 2, 'exists': p.is_dir()} for i, p in enumerate(project_roots())],
         'selected': st.get('selected'),
         'toolchains': [{'path': str(p), 'label': toolchain_label(p)} for p in toolchains],
         'toolchain': str(chosen) if chosen else None,
@@ -495,6 +510,23 @@ class Handler(BaseHTTPRequestHandler):
                           ('toolchain', 'profile', 'build_type', 'sd_log', 'sd_card', 'selected')})
             return self.json({'ok': True})
         if action == 'rescan':
+            PROJECTS = scan_projects()
+            return self.json({'ok': True})
+        if action == 'add_root':
+            folder = body.get('path') or pick_folder()
+            if not folder:
+                return self.json({'ok': False, 'cancelled': True})
+            folder = str(Path(folder).resolve())
+            if not Path(folder).is_dir():
+                return self.json({'ok': False, 'message': f'Not a folder: {folder}'})
+            roots = load_state().get('project_roots', [])
+            if folder.lower() not in [str(p).lower() for p in project_roots()]:
+                save_state(project_roots=roots + [folder])
+            PROJECTS = scan_projects()
+            return self.json({'ok': True, 'path': folder})
+        if action == 'remove_root':
+            roots = [r for r in load_state().get('project_roots', []) if r.lower() != str(body.get('path', '')).lower()]
+            save_state(project_roots=roots)
             PROJECTS = scan_projects()
             return self.json({'ok': True})
         if action == 'build' and project:
