@@ -45,6 +45,17 @@ and SD cards as they're plugged in; and the build log, live. It's an app of its 
 taskbar button (WebView2, built into Windows 11), with nothing to install but Python. Without WebView2 it
 opens in an Edge window instead.
 
+- **Games play inside the app:** Run in Dolphin puts the game on the Run page (Stop, Pop out).
+- **Debug, on real hardware through a USB Gecko:** a live console (what the game sends, and a line to send
+  it) and **Start GDB**: breakpoints, stepping and crashes caught on the console, in GDB.
+- **Disc images on their own** (homebrew, tests) are listed too, to run in Dolphin or put on an SD card.
+
+### Hardware tests
+
+[`tests\`](tests/README.md) has two small GameCube programs, as disc images in the release: **geckotest**
+(the USB Gecko link, both ways) and **gdbtest** (GDB on the console: breakpoints, a deliberate crash). Boot
+them with Swiss to check a setup before debugging a game.
+
 ## Running a build
 
 | Target | Method |

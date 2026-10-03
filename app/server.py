@@ -33,7 +33,7 @@ STATE = HERE / '.state.json'                       # the user's choices (not in 
 DOCUMENTS = Path.home() / 'Documents'
 DW_ROOT = Path(r'C:\DolphinWorks')                 # where dolphinworks.bat installs
 NO_WINDOW, LOW_PRIORITY = 0x08000000, 0x4000
-VERSION = '0.1 (prototype)'
+VERSION = '0.2 (prototype)'
 BUILD_OUTPUT = re.compile(r'\\(Packaged|Intermediate)\\', re.I)   # a build's copy of the project: never listed
 
 
@@ -533,10 +533,9 @@ def start_gdb(project):
     if not gdb:
         return {'ok': False, 'message': 'No powerpc-eabi-gdb: install gekko-toolchain or devkitPro.'}
     GECKO.disconnect(f'Disconnected: GDB has {port} now')
-    subprocess.Popen([str(gdb), '-q', '-ex', f'directory {(elf.parent / "source").as_posix()}',   # (forward slashes: GDB eats backslashes)
+    start_apart([str(gdb), '-q', '-ex', f'directory {(elf.parent / "source").as_posix()}',   # (forward slashes: GDB eats backslashes)
                       '-ex', 'set remotetimeout 10',
-                      '-ex', rf'target remote \\.\{port}', str(elf)], cwd=elf.parent,
-                     creationflags=0x00000010)                    # CREATE_NEW_CONSOLE: its own window
+                      '-ex', rf'target remote \\.\{port}', str(elf)], elf.parent, 0x00000010)                    # CREATE_NEW_CONSOLE: its own window
     JOBS.emit('line', text=f'GDB on {port}: {elf.name}', level='info')
     return {'ok': True, 'message': f'GDB started on {port}', **GECKO.status()}
 SOURCE_LINE = re.compile(r'^\s*[\w.+-]+\.(?:cpp|c)$')
@@ -652,7 +651,21 @@ def deploy(project, drive):
     return True
 
 
-def launch(args, cwd=None, minimized=False):
+BREAKAWAY = 0x01000000                             # CREATE_BREAKAWAY_FROM_JOB
+
+
+def start_apart(args, cwd=None, flags=0x00000008, startupinfo=None, stay=True):
+    """Starts a program; stay: it outlives the app (out of DolphinWorks.exe's job, which ends with the app).
+    Where breaking away isn't allowed (an older DolphinWorks.exe, or no job at all), it starts as before."""
+    if stay:
+        try:
+            return subprocess.Popen(args, cwd=cwd, creationflags=flags | BREAKAWAY, startupinfo=startupinfo)
+        except OSError:
+            pass
+    return subprocess.Popen(args, cwd=cwd, creationflags=flags, startupinfo=startupinfo)
+
+
+def launch(args, cwd=None, minimized=False, stay=True):
     startup = None
     if minimized:
         # its first window opens minimized: a game run from the app shows only once DolphinWorks.exe has
@@ -660,7 +673,7 @@ def launch(args, cwd=None, minimized=False):
         startup = subprocess.STARTUPINFO()
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 7                                     # SW_SHOWMINNOACTIVE
-    return subprocess.Popen(args, cwd=cwd, creationflags=0x00000008, startupinfo=startup)   # DETACHED_PROCESS
+    return start_apart(args, cwd, 0x00000008, startup, stay)        # DETACHED_PROCESS
 
 
 # a game run from the app: no "stop the emulation?" question (the app's Stop, or closing the app, ends
@@ -942,7 +955,8 @@ class Handler(BaseHTTPRequestHandler):
             args = [str(dolphin / 'Dolphin.exe')]
             if profiles:
                 args += ['-u', str(dolphin / ('User-Accurate' if body.get('profile') == 'Accurate' else 'User'))]
-            proc = launch(args + RUN_CONFIG + ['-b', '-e', project['iso']], cwd=dolphin, minimized=bool(body.get('embed')))
+            proc = launch(args + RUN_CONFIG + ['-b', '-e', project['iso']], cwd=dolphin, minimized=bool(body.get('embed')),
+                          stay=not body.get('embed'))       # (a game inside the app ends with it)
             JOBS.emit('line', text=f'Running {project["title"]} in Dolphin ({body.get("profile", "Fast")})', level='info')
             return self.json({'ok': True, 'pid': proc.pid, 'title': project['title']})
         if action == 'dolphin':

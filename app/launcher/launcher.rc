@@ -3,8 +3,8 @@
 1 ICON "..\\app.ico"
 
 1 VERSIONINFO
-FILEVERSION 0,1,0,0
-PRODUCTVERSION 0,1,0,0
+FILEVERSION 0,2,0,0
+PRODUCTVERSION 0,2,0,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -14,7 +14,7 @@ BEGIN
     BEGIN
       VALUE "FileDescription", "DolphinWorks"
       VALUE "ProductName", "DolphinWorks"
-      VALUE "ProductVersion", "0.1 (prototype)"
+      VALUE "ProductVersion", "0.2 (prototype)"
       VALUE "OriginalFilename", "DolphinWorks.exe"
     END
   END

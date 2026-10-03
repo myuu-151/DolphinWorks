@@ -229,7 +229,9 @@ static bool start_server(const std::wstring &dir)
 {
     job = CreateJobObjectW(NULL, NULL);
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    // (BREAKAWAY_OK: what the app opens for you -- the editor, GDB, a folder -- leaves the job, and stays open
+    // when the app closes; the server, and a game playing inside the app, end with it)
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
     SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
 
     for (const wchar_t *python : pythons)
