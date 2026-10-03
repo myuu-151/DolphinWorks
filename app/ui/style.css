@@ -219,6 +219,17 @@ code.fix { font-family: Consolas, monospace; color: #bfe0c8; }
 a.fix { color: #8fb5ff; }
 .err { color: var(--err); }
 .card h2.later { margin-top: 22px; }
+#engineCard { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+#engineCard h2 .small { font-size: 13px; font-weight: 400; }
+.engine-head { table-layout: fixed; }
+.engine-head th { width: 110px; }
+.engine-head .btn.small, .engine-head .fix.inline { margin-left: 10px; }
+.fix.inline { display: inline; }
+.engine-parts th:nth-child(1) { width: 52%; }
+.engine-parts th:nth-child(2) { width: 26%; }
+.engine-parts .check { display: inline-flex; gap: 8px; align-items: center; margin: 0; }
+.needs { margin: 12px 0; font-size: 13px; line-height: 1.7; }
+.warn { color: #e0b252; }
 #settingsCard .table { table-layout: fixed; }
 #settingsCard .table th { width: 110px; vertical-align: top; padding-top: 13px; }
 #settingsCard .table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

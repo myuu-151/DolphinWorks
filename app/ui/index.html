@@ -38,6 +38,7 @@
     <button class="nav" data-page="build"><svg viewBox="0 0 24 24"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.6 5.6L3 15l3 3 6.1-6.1a4.5 4.5 0 0 0 5.6-5.6l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Build</button>
     <button class="nav" data-page="run"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>Run</button>
     <button class="nav" data-page="debug"><svg viewBox="0 0 24 24"><path d="M9 4h6v2h2.5L19 4.5l1.4 1.4L19 7.3V9h3v2h-3v2h3v2h-3v1.5A5.5 5.5 0 0 1 13.5 22h-3A5.5 5.5 0 0 1 5 16.5V15H2v-2h3v-2H2V9h3V7.3L3.6 5.9 5 4.5 6.5 6H9z"/></svg>Debug</button>
+    <button class="nav" data-page="engine"><svg viewBox="0 0 24 24"><path d="M9 2h2v2h2V2h2v2h1.5A2.5 2.5 0 0 1 19 6.5V8h2v2h-2v2h2v2h-2v1.5a2.5 2.5 0 0 1-2.5 2.5H15v2h-2v-2h-2v2H9v-2H7.5A2.5 2.5 0 0 1 5 15.5V14H3v-2h2v-2H3V8h2V6.5A2.5 2.5 0 0 1 7.5 4H9zm0 5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z"/></svg>Engine</button>
     <button class="nav" data-page="packages"><svg viewBox="0 0 24 24"><path d="M12 2 3 6.5v11L12 22l9-4.5v-11zm0 2.2 6.5 3.3L12 10.8 5.5 7.5zM5 9.2l6 3v7.4l-6-3zm8 10.4v-7.4l6-3v7.4z"/></svg>Packages</button>
     <button class="nav" data-page="settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1l.3 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>Settings</button>
   </aside>
@@ -145,6 +146,13 @@
           </details>
         </div>
       </div>
+    </div>
+
+    <!-- ENGINE -->
+    <div class="page" id="page-engine">
+      <div class="page-head"><div><h1>Engine</h1><p>Octave-libogc: the engine your games are built with, from its source.</p></div>
+        <button class="btn" data-act="engine_editor">Open editor</button></div>
+      <div class="card" id="engineCard"><div class="empty">Looking at the engine…</div></div>
     </div>
 
     <!-- PACKAGES -->

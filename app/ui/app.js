@@ -490,6 +490,7 @@ function bindGecko() {
   };
   $('#gcClear').onclick = () => { $('#gcLog').innerHTML = ''; };
   bindDiscCards();
+  bindEngine();
   // Rename: click the title, type, Enter (Esc cancels; empty: its own name again). DolphinWorks' name only.
   $('#detail').addEventListener('click', (e) => {
     const h = e.target.closest('#ptitle');
@@ -550,10 +551,91 @@ function listen() {
       state.busy = null;
       toast(e.ok ? `${e.title}: done` : `${e.title}: failed (see the log)`);
       refresh();
+      if ($('#page-engine').classList.contains('active')) loadEngine(true);
     } else if (e.kind === 'refresh') refresh();
     else if (e.kind === 'gecko') geckoLine(e);
     else if (e.kind === 'gecko_status') geckoStatus(e);
   };
+}
+
+// --- the engine page ----------------------------------------------------------------------------
+// Octave-libogc: its version against the newest release, what's built and what's stale (its own builder,
+// Tools/builder.py --status, says), building the parts ticked, updating, the editor.
+
+let engine = null;
+
+async function loadEngine(fresh) {
+  engine = await api('/api/engine' + (fresh ? '?fresh' : ''));
+  renderEngine();
+  if (!engine.latest) setTimeout(() => api('/api/engine').then((e) => { engine = e; renderEngine(); }), 3000);
+}
+
+const when = (t) => t ? new Date(t * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+
+function renderEngine() {
+  const card = $('#engineCard');
+  if (!engine || !engine.octave) {
+    card.innerHTML = '<div class="empty">No Octave-libogc found: install it from Packages, or set where it is in Settings.</div>';
+    return;
+  }
+  const s = engine.status || {}, latest = engine.latest, busy = !!state.busy;
+  const behind = latest && s.version && s.version.replace(/\+.*/, '') !== latest.tag;
+  const version = `<b>${esc(s.version || 'unknown')}</b> <span class="muted">${s.git ? 'from source (a git checkout)' : 'a release'}</span>`;
+  const update = !latest ? '<span class="muted">asking GitHub for the newest release…</span>'
+    : behind ? `<span class="warn">${esc(latest.tag)} is out</span> <a class="fix inline" href="${esc(latest.url)}" target="_blank">what's new</a>`
+    : `<span class="ok">● up to date</span> <span class="muted">(newest: ${esc(latest.tag)})</span>`;
+  const needs = s.needs || {};
+  const parts = engine.parts.map(([key, name, purpose]) => {
+    const p = (s.parts || {})[key] || {};
+    const state_ = !p.built ? '<span class="err">○ Not built</span>'
+      : p.stale ? `<span class="warn">● Source changed since${p.to_compile ? ` (${p.to_compile} files)` : ''}</span>`
+      : '<span class="ok">● Built</span>';
+    const tick = !p.built || p.stale;
+    return `<tr><td><label class="check"><input type="checkbox" data-part="${key}" ${tick ? 'checked' : ''}> ${esc(name)}</label>
+      <div class="purpose">${esc(purpose)}</div></td><td>${state_}</td><td class="muted">${esc(when(p.time))}</td></tr>`;
+  }).join('');
+  const need = (ok, name, fix) => `<span class="${ok ? 'ok' : 'err'}">${ok ? '●' : '○'} ${esc(name)}</span>${ok ? '' : ` <span class="muted">${esc(fix)}</span>`}`;
+  card.innerHTML = `
+    <table class="table engine-head">
+      <tr><th>Version</th><td>${version}</td></tr>
+      <tr><th>Newest</th><td>${update}
+        <button class="btn small" data-engine="update" ${busy ? 'disabled' : ''}>${s.git ? 'Update (git pull)' : behind ? `Update to ${esc(latest.tag)}` : 'Reinstall'}</button></td></tr>
+      <tr><th>Where</th><td>${esc(engine.octave)} <button class="btn small" data-engine="folder">${ICONS.folder} Open folder</button></td></tr>
+    </table>
+    <h2 class="later">Build it ${s.old_builder ? '' : '<span class="muted small">(its own builder, Tools/builder.py, without its window)</span>'}</h2>
+    ${s.old_builder ? '<p class="muted">This Octave is older than its builder\'s DolphinWorks mode: update it first.</p>' : `
+    <table class="table packages engine-parts"><tr><th>Part</th><th>State</th><th>Built</th></tr>${parts}</table>
+    <p class="needs">Needs: ${need(needs.toolchain, needs.toolchain_label || 'GameCube toolchain', 'devkitPro or gekko-toolchain (Packages)')}
+      · ${need(needs.msbuild, 'Visual Studio C++', 'for the editor and Windows program')}
+      · ${need(needs.vulkan, 'Vulkan SDK', 'for the shaders, the editor and Windows program')}</p>
+    ${engine.editor_running ? '<p class="warn">The editor is open: close it before building the editor (its file is in use).</p>' : ''}
+    <div class="row2"><button class="btn primary" data-engine="build" ${busy ? 'disabled' : ''}>Build ticked parts</button>
+      <button class="btn" data-engine="refresh">Check again</button></div>`}`;
+}
+
+function bindEngine() {
+  $('#engineCard').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-engine]');
+    if (!b || b.disabled) return;
+    const what = b.dataset.engine;
+    if (what === 'refresh') return loadEngine(true);
+    if (what === 'folder') return api('/api/engine_folder', {});
+    if (what === 'update') {
+      const s = engine.status || {};
+      if (!s.git && !confirm(`Replace Octave-libogc ${s.version || ''} in ${engine.octave} with ${engine.latest ? engine.latest.tag : 'the newest release'}?`
+          + '\n\nIt downloads the release (about 230 MB), unpacks it beside this one, and swaps it in. Close the editor first.')) return;
+      $('#log').innerHTML = '';
+      const r = await api('/api/engine_update', {});
+      if (!r.ok) toast(r.busy ? `Busy: ${r.busy}` : 'That did not start.');
+      return;
+    }
+    if (what === 'build') {
+      const parts = $$('#engineCard [data-part]').filter((c) => c.checked).map((c) => c.dataset.part);
+      $('#log').innerHTML = '';
+      const r = await api('/api/engine_build', { parts });
+      if (!r.ok) toast(r.message || (r.busy ? `Busy: ${r.busy}` : 'That did not start.'));
+    }
+  });
 }
 
 // --- actions -------------------------------------------------------------------------------------
@@ -654,6 +736,7 @@ function bind() {
   $$('.nav').forEach((b) => b.onclick = () => {
     $$('.nav').forEach((x) => x.classList.toggle('active', x === b));
     $$('.page').forEach((pg) => pg.classList.toggle('active', pg.id === 'page-' + b.dataset.page));
+    if (b.dataset.page === 'engine') loadEngine();
     placeScreen();                                   // (the game shows only on the Run page)
     geckoAuto();                                     // (opening Debug connects the Gecko)
   });

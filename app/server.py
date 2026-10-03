@@ -26,6 +26,8 @@ import sys
 import threading
 import time
 import urllib.parse
+import urllib.request
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -691,6 +693,7 @@ def build(project, options):
             shutil.rmtree(intermediate, ignore_errors=True)
     JOBS.emit('line', text=f'Using toolchain: {toolchain_label(dkp)} ({dkp})', level='info')
     JOBS.emit('line', text=f'Building project: {project["title"]}', level='info')
+    engine_warning()
     JOBS.emit('progress', step='packaging the assets')
     start = time.time()
     try:
@@ -711,6 +714,192 @@ def build(project, options):
     JOBS.emit('line', text=f'Total time: {time.time() - start:.1f}s', level='info')
     rescan()                                         # (the new build's date and size, before "done")
     return True
+
+
+# --- the engine (the Engine page) ------------------------------------------------------------------
+# Octave-libogc as DolphinWorks drives it: its own builder (Tools/builder.py, --status and --build) says
+# what's built and stale and builds it; its GitHub releases say what's newest.
+
+ENGINE_REPO = 'myuu-151/Octave-libogc'
+ENGINE_CACHE = {'status': None, 'time': 0, 'latest': None, 'latest_time': 0}
+ENGINE_PARTS = (('gcn', 'GameCube engine library', 'libEngine.a: what every GameCube game links'),
+                ('editor', 'Editor', 'Octave.exe: the editor, and the packager every Build uses'),
+                ('runtime', 'Windows game program', 'for packaging a game for Windows'),
+                ('shaders', 'Shaders', 'the Vulkan shaders the editor and Windows games draw with'),
+                ('ffmpeg', 'ffmpeg', 'video and sound conversion when packaging'))
+
+
+def engine_builder(octave):
+    builder = octave / 'Tools' / 'builder.py'
+    return builder if builder.exists() else None
+
+
+def engine_status(fresh=False):
+    """Octave's builder's --status (what's built, what's stale, what building needs), cached a minute."""
+    octave = find_octave()
+    if not octave:
+        return None
+    if fresh or not ENGINE_CACHE['status'] or ENGINE_CACHE['status'].get('root') != str(octave) \
+            or time.time() - ENGINE_CACHE['time'] > 60:
+        builder, status = engine_builder(octave), None
+        if builder:
+            try:
+                out = subprocess.run([sys.executable, str(builder), '--status'], cwd=octave, capture_output=True,
+                                     timeout=60, creationflags=NO_WINDOW).stdout
+                status = json.loads(out.decode('utf-8', 'replace').strip().splitlines()[-1])
+            except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+                status = None
+        ENGINE_CACHE.update(status=status or {'root': str(octave), 'version': octave_version(octave),
+                                               'git': (octave / '.git').exists(), 'old_builder': True},
+                            time=time.time())
+    return ENGINE_CACHE['status']
+
+
+def engine_latest():
+    """The newest Octave-libogc release on GitHub (its tag, name, notes' first line, zip): asked once an hour,
+    in the background; None until the answer's in."""
+    if time.time() - ENGINE_CACHE['latest_time'] > 3600:
+        ENGINE_CACHE['latest_time'] = time.time()
+
+        def ask():
+            try:
+                with urllib.request.urlopen(f'https://api.github.com/repos/{ENGINE_REPO}/releases/latest', timeout=30) as r:
+                    release = json.load(r)
+                asset = next((a for a in release['assets'] if a['name'].endswith('.zip')), None)
+                ENGINE_CACHE['latest'] = {'tag': release['tag_name'], 'name': release['name'], 'url': release['html_url'],
+                                          'zip': asset and asset['browser_download_url'], 'size': asset and asset['size']}
+            except (OSError, ValueError, KeyError):
+                ENGINE_CACHE['latest_time'] = 0                  # (offline: ask again next time)
+        threading.Thread(target=ask, daemon=True).start()
+    return ENGINE_CACHE['latest']
+
+
+def engine_payload(fresh=False):
+    octave = find_octave()
+    return {'status': engine_status(fresh), 'latest': engine_latest(), 'parts': ENGINE_PARTS,
+            'octave': str(octave) if octave else None,
+            'editor_running': bool(octave) and process_running(octave / 'Octave.exe')}
+
+
+def process_running(exe):
+    """Whether this very program (by its path) is running."""
+    try:
+        out = subprocess.run(['powershell', '-NoProfile', '-Command',
+                              f"(Get-Process | Where-Object {{ $_.Path -eq '{exe}' }}).Count"],
+                             capture_output=True, text=True, timeout=20, creationflags=NO_WINDOW).stdout.strip()
+        return out not in ('', '0')
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def engine_build(parts):
+    """Octave's builder, without its window, for these parts: its steps and errors into the log."""
+    octave = find_octave()
+    builder = octave and engine_builder(octave)
+    if not builder:
+        JOBS.emit('line', text="This Octave has no builder (Tools/builder.py): update it first.", level='error')
+        return False
+    dkp = chosen_toolchain()
+    args = [sys.executable, str(builder), '--build', ','.join(parts)] + (['--toolchain', str(dkp)] if dkp else [])
+    JOBS.emit('line', text=f'Building the engine ({", ".join(parts)}) in {octave}', level='info')
+    startup = subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow = 0
+    proc = subprocess.Popen(args, cwd=octave, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                            startupinfo=startup, creationflags=NO_WINDOW | LOW_PRIORITY)
+    phase = step = ''
+    ok = False
+    for raw in proc.stdout:
+        try:
+            event = json.loads(raw.decode('utf-8', 'replace'))
+        except ValueError:
+            continue
+        kind, data = event.get('kind'), event.get('data', [])
+        if kind == 'line' and (len(data) < 2 or data[1]):               # (its window's lines: steps and errors)
+            JOBS.emit('line', text=data[0], level=level_of(data[0]))
+        elif kind == 'phase':
+            phase = data[0]
+            JOBS.emit('progress', step=phase)
+        elif kind == 'step':
+            step = data[0]
+            JOBS.emit('progress', step=f'{phase}: {step}')
+        elif kind == 'progress':
+            JOBS.emit('progress', step=f'{phase}: {step}, {data[0]} of {data[1]}')
+        elif kind == 'count':
+            JOBS.emit('progress', step=f'{phase}: {step}, {data[0]} files')
+        elif kind == 'done':
+            ok = bool(data and data[0])
+    proc.wait()
+    VERSIONS.clear()
+    engine_status(fresh=True)
+    JOBS.emit('line', text='The engine is built.' if ok else
+              f'The engine build failed: the lines above say why (all of it: {octave / "builder.log"}).',
+              level='success' if ok else 'error')
+    return ok
+
+
+def engine_update():
+    """The newest engine: a git checkout pulls (fast-forward only: local commits stay yours to merge); an
+    installed release is replaced by the newest one, unpacked beside it first and swapped in once whole."""
+    octave = find_octave()
+    if not octave:
+        JOBS.emit('line', text='No Octave-libogc: install it from Packages.', level='error')
+        return False
+    if (octave / '.git').exists():
+        JOBS.emit('progress', step='git pull')
+        ok = run_logged(['git', 'pull', '--ff-only'], octave, dict(os.environ))
+        VERSIONS.clear()
+        status = engine_status(fresh=True)
+        stale = [name for key, name, _ in ENGINE_PARTS if status and (status.get('parts', {}).get(key) or {}).get('stale')]
+        JOBS.emit('line', text=('Updated.' + (f' Changed since they were built: {", ".join(stale)} (Engine page: Build).'
+                                              if stale else '')) if ok else
+                  'git pull did not fast-forward (local commits, or changes in the way): the lines above say which.',
+                  level='success' if ok else 'error')
+        return ok
+    latest = engine_latest()
+    if not latest or not latest.get('zip'):
+        JOBS.emit('line', text="Couldn't reach GitHub for the newest release.", level='error')
+        return False
+    if process_running(octave / 'Octave.exe'):
+        JOBS.emit('line', text='Close the Octave editor first: its files are in use.', level='error')
+        return False
+    archive = octave.parent / f'{octave.name}-{latest["tag"]}.zip'
+    fresh = octave.parent / f'{octave.name}.new'
+    JOBS.emit('line', text=f'Downloading Octave-libogc {latest["tag"]} ({latest["size"] / 2**20:.0f} MB)', level='info')
+    with urllib.request.urlopen(latest['zip'], timeout=60) as r, open(archive, 'wb') as out:
+        done = 0
+        while block := r.read(1 << 20):
+            out.write(block)
+            done += len(block)
+            JOBS.emit('progress', step=f'downloading {latest["tag"]}', done=done >> 20, total=latest['size'] >> 20)
+    JOBS.emit('progress', step='unpacking')
+    shutil.rmtree(fresh, ignore_errors=True)
+    with zipfile.ZipFile(archive) as z:
+        z.extractall(fresh)
+    archive.unlink()
+    if not (fresh / 'Octave.exe').exists():
+        JOBS.emit('line', text='The release had no Octave.exe in it: nothing changed.', level='error')
+        shutil.rmtree(fresh, ignore_errors=True)
+        return False
+    (fresh / '.dolphinworks-release').write_text(latest['tag'] + '\n')
+    old = octave.parent / f'{octave.name}.old'
+    shutil.rmtree(old, ignore_errors=True)
+    octave.rename(old)
+    fresh.rename(octave)
+    shutil.rmtree(old, ignore_errors=True)
+    VERSIONS.clear()
+    engine_status(fresh=True)
+    JOBS.emit('line', text=f'Octave-libogc {latest["tag"]}: {octave}', level='success')
+    return True
+
+
+def engine_warning():
+    """A line for a game's build when the engine library is older than the engine's source (a checkout)."""
+    status = engine_status()
+    gcn = status and (status.get('parts') or {}).get('gcn') or {}
+    if gcn.get('stale'):
+        JOBS.emit('line', text=f'The engine library is older than its source ({gcn.get("to_compile")} files changed): this '
+                                'game links the old one. Build it on the Engine page first to take the changes.', level='warning')
 
 
 def chosen_toolchain():
@@ -939,6 +1128,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(state_payload())
         if url.path == '/api/history':
             return self.json(JOBS.history)
+        if url.path == '/api/engine':
+            return self.json(engine_payload(fresh='fresh' in query))
         if url.path == '/api/gecko_history':
             return self.json(GECKO.history)
         if url.path == '/api/events':
@@ -1040,6 +1231,24 @@ class Handler(BaseHTTPRequestHandler):
             finally:
                 PROJECTS = scan_projects()
             return self.json({'ok': True, 'message': note})
+        if action == 'engine_build':
+            parts = [k for k in body.get('parts', []) if k in {key for key, _, _ in ENGINE_PARTS}]
+            if not parts:
+                return self.json({'ok': False, 'message': 'Tick a part to build.'})
+            return self.json({'ok': JOBS.start('Build the engine', lambda: engine_build(parts)), 'busy': JOBS.busy})
+        if action == 'engine_update':
+            return self.json({'ok': JOBS.start('Update the engine', engine_update), 'busy': JOBS.busy})
+        if action == 'engine_editor':
+            octave = find_octave()
+            if not octave:
+                return self.json({'ok': False, 'message': 'No Octave-libogc: install it from Packages.'})
+            launch([str(octave / 'Octave.exe')], cwd=octave)
+            return self.json({'ok': True})
+        if action == 'engine_folder':
+            octave = find_octave()
+            if octave:
+                launch(['explorer', str(octave)])
+            return self.json({'ok': bool(octave)})
         if action == 'gecko_connect':
             ok, message = GECKO.connect()
             return self.json({'ok': ok, 'message': message, **GECKO.status()})
