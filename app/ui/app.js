@@ -145,8 +145,13 @@ function renderPages() {
       <td class="muted">${esc(p.where || '')}${fix}</td></tr>`;
   };
   const ours = [
-    { name: 'GameCube toolchain', ok: state.toolchains.length, where: state.toolchains.map((t) => t.label).join(', '),
-      purpose: 'Compiling and linking for the GameCube' },
+    // the toolchain in use: "Toolchain (devkitPro)" or "Toolchain (gekko-toolchain)", its version and folder
+    (() => {
+      const t = state.toolchains.find((x) => x.path === state.toolchain) || state.toolchains[0];
+      const [kind, ...version] = t ? t.label.split(' ') : [];
+      return { name: t ? `Toolchain (${kind})` : 'Toolchain', ok: !!t, where: t && `${version.join(' ')}: ${t.path}`,
+               purpose: 'Compiling and linking for the GameCube' };
+    })(),
     { name: 'Engine (Octave-libogc)', ok: state.octave, where: state.octave && `${state.octave_version || ''}: ${state.octave}`,
       purpose: 'Building the games' },
     { name: 'Emulator (Dolphin)', ok: state.dolphin, where: state.dolphin && `${state.dolphin.version}: ${state.dolphin.path}`,
