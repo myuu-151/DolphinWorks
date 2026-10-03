@@ -1081,7 +1081,8 @@ async function loadDisc(p) {
   }
   C.discFiles = r.files;
   const total = r.files.reduce((n, f) => n + f.size, 0);
-  $('#cRootHint').textContent = `${r.files.length} files · ${kb(total)}`;
+  $('#cRootHint').textContent = `${r.files.length} · ${kb(total)}`;
+  $('#cRootHint').title = `${r.files.length} files · ${kb(total)} on the disc`;
   const rows = (node, prefix, depth) => Object.keys(node.dirs).sort((a, b) => a.localeCompare(b)).map((name) => {
     const path = prefix + name, open = C.folds['disc:' + path] === true, sub = node.dirs[name];
     const size = C.discFiles.filter((f) => f.path.startsWith(path + '/')).reduce((n, f) => n + f.size, 0);
