@@ -203,13 +203,39 @@ def project_roots():
     return [p for p in DEFAULT_ROOTS if str(p).lower() not in hidden] + [Path(p) for p in st.get('project_roots', [])]
 
 
-def pick_folder():
+def pick_folder(title='Choose a folder with Octave projects'):
     """Windows' folder picker (Tk's, in a process of its own so it never blocks the server)."""
-    code = ('import tkinter, tkinter.filedialog as fd; r = tkinter.Tk(); r.withdraw(); '
+    code = ('import sys, tkinter, tkinter.filedialog as fd; r = tkinter.Tk(); r.withdraw(); '
             'r.attributes("-topmost", True); '
-            'print(fd.askdirectory(parent=r, title="Choose a folder with Octave projects", mustexist=True) or "")')
-    out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, creationflags=NO_WINDOW)
+            'print(fd.askdirectory(parent=r, title=sys.argv[1], mustexist=True) or "")')
+    out = subprocess.run([sys.executable, '-c', code, title], capture_output=True, text=True, creationflags=NO_WINDOW)
     return out.stdout.strip() or None
+
+
+# the paths set in Settings: (title of the picker, what the folder must hold)
+PATHS = {
+    'toolchain': ('Choose the toolchain folder (devkitPro or gekko-toolchain)', r'devkitPPC\bin\powerpc-eabi-gcc.exe'),
+    'octave': ('Choose the Octave-libogc folder', 'Octave.exe'),
+    'dolphin': ('Choose the Dolphin folder', 'Dolphin.exe'),
+}
+
+
+def set_path(kind, folder=None):
+    """Sets the toolchain, engine or Dolphin folder: (ok, message)."""
+    title, needs = PATHS[kind]
+    folder = folder or pick_folder(title)
+    if not folder:
+        return False, None
+    folder = Path(folder).resolve()
+    if not (folder / needs).exists():
+        return False, f'{folder} has no {needs}.'
+    if kind == 'toolchain':
+        st = load_state()
+        extra = st.get('toolchain_folders', [])
+        if str(folder).lower() not in [e.lower() for e in extra]:
+            save_state(toolchain_folders=extra + [str(folder)])
+    save_state(**{kind: str(folder)})
+    return True, str(folder)
 
 
 def scan_projects():
@@ -427,6 +453,7 @@ def state_payload():
     return {
         'version': VERSION,
         'projects': PROJECTS,
+        'custom_paths': {kind: bool(st.get(kind)) for kind in PATHS},
         'project_roots': [{'path': str(p), 'default': p in DEFAULT_ROOTS, 'exists': p.is_dir()} for p in project_roots()],
         'selected': st.get('selected'),
         'toolchains': [{'path': str(p), 'label': toolchain_label(p)} for p in toolchains],
@@ -532,6 +559,16 @@ class Handler(BaseHTTPRequestHandler):
             save_state(project_roots=roots, hidden_roots=hidden)     # (a removed default comes back)
             PROJECTS = scan_projects()
             return self.json({'ok': True, 'path': folder})
+        if action == 'set_path' and body.get('kind') in PATHS:
+            ok, message = set_path(body['kind'], body.get('path'))
+            return self.json({'ok': ok, 'path': message} if ok else {'ok': False, 'cancelled': message is None, 'message': message})
+        if action == 'reset_path' and body.get('kind') in PATHS:
+            st = load_state()
+            st.pop(body['kind'], None)
+            if body['kind'] == 'toolchain':
+                st.pop('toolchain_folders', None)
+            STATE.write_text(json.dumps(st, indent=1))
+            return self.json({'ok': True})
         if action == 'remove_root':
             path = str(body.get('path', '')).lower()
             st = load_state()

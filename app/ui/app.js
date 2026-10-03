@@ -142,13 +142,23 @@ function renderPages() {
         || '<span class="muted">No folders: add one below.</span>'}</div>
       <div class="roots-foot"><button class="btn small" id="addRoot">+ Add folder...</button>
         <span class="muted">${state.projects.length} projects found</span></div></td></tr>
-    <tr><th>Toolchain</th><td>${esc(state.toolchain || 'none')}</td></tr>
-    <tr><th>Engine</th><td>${esc(state.octave || 'none')}</td></tr>
-    <tr><th>Dolphin</th><td>${esc(state.dolphin ? state.dolphin.path : 'none')}</td></tr></table>
+    ${pathRow('Toolchain', 'toolchain', state.toolchain)}
+    ${pathRow('Engine', 'octave', state.octave)}
+    ${pathRow('Dolphin', 'dolphin', state.dolphin && state.dolphin.path)}</table>
     <p class="muted">DolphinWorks ${esc(state.version)}</p>`;
   $('#topStatus').innerHTML = [
     ['Toolchain', state.toolchains.length], ['Engine', state.octave], ['Dolphin', state.dolphin], ['USB Gecko', state.gecko],
   ].map(([n, ok]) => `<span class="chip"><span class="dot ${ok ? '' : 'off'}"></span>${n}</span>`).join('');
+}
+
+// a Settings row for a folder DolphinWorks finds by itself, or that's set by hand
+function pathRow(label, kind, path) {
+  const custom = state.custom_paths && state.custom_paths[kind];
+  return `<tr><th>${label}</th><td><div class="root">
+    <span class="root-path${path ? '' : ' muted'}">${esc(path || 'Not found')}</span>
+    <span class="muted">${custom ? 'set' : 'found'}</span>
+    ${custom ? `<button class="btn small" data-reset-path="${kind}" title="Find it automatically again">Auto</button>` : ''}
+    <button class="btn small" data-set-path="${kind}">Change...</button></div></td></tr>`;
 }
 
 function renderStatus() {
@@ -224,6 +234,18 @@ function bind() {
       const res = await api('/api/add_root', {});
       if (res.ok) { await refresh(); toast(`Added ${res.path}: ${state.projects.length} projects`); }
       else if (!res.cancelled) toast(res.message || 'That did not work.');
+    }
+    const set = e.target.closest('[data-set-path]');
+    if (set) {
+      const res = await api('/api/set_path', { kind: set.dataset.setPath });
+      if (res.ok) { await refresh(); toast(`Using ${res.path}`); }
+      else if (!res.cancelled) toast(res.message || 'That did not work.');
+    }
+    const reset = e.target.closest('[data-reset-path]');
+    if (reset) {
+      await api('/api/reset_path', { kind: reset.dataset.resetPath });
+      await refresh();
+      toast('Found automatically');
     }
     const rm = e.target.closest('[data-remove-root]');
     if (rm) {
