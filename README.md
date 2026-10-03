@@ -1,3 +1,5 @@
+![DolphinWorks](docs/banner.png)
+
 # DolphinWorks
 
 An open-source development suite for Nintendo GameCube
