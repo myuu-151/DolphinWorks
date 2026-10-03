@@ -193,9 +193,14 @@ def find_art(root):
     return banner, screenshot
 
 
+DEFAULT_ROOTS = [DOCUMENTS, DW_ROOT / 'Projects']
+
+
 def project_roots():
-    """The folders searched for projects: the two defaults, then the user's own."""
-    return [DOCUMENTS, DW_ROOT / 'Projects', *map(Path, load_state().get('project_roots', []))]
+    """The folders searched for projects: the defaults (unless removed), then the user's own."""
+    st = load_state()
+    hidden = [h.lower() for h in st.get('hidden_roots', [])]
+    return [p for p in DEFAULT_ROOTS if str(p).lower() not in hidden] + [Path(p) for p in st.get('project_roots', [])]
 
 
 def pick_folder():
@@ -422,7 +427,7 @@ def state_payload():
     return {
         'version': VERSION,
         'projects': PROJECTS,
-        'project_roots': [{'path': str(p), 'default': i < 2, 'exists': p.is_dir()} for i, p in enumerate(project_roots())],
+        'project_roots': [{'path': str(p), 'default': p in DEFAULT_ROOTS, 'exists': p.is_dir()} for p in project_roots()],
         'selected': st.get('selected'),
         'toolchains': [{'path': str(p), 'label': toolchain_label(p)} for p in toolchains],
         'toolchain': str(chosen) if chosen else None,
@@ -519,14 +524,22 @@ class Handler(BaseHTTPRequestHandler):
             folder = str(Path(folder).resolve())
             if not Path(folder).is_dir():
                 return self.json({'ok': False, 'message': f'Not a folder: {folder}'})
-            roots = load_state().get('project_roots', [])
-            if folder.lower() not in [str(p).lower() for p in project_roots()]:
-                save_state(project_roots=roots + [folder])
+            st = load_state()
+            hidden = [h for h in st.get('hidden_roots', []) if h.lower() != folder.lower()]
+            roots = st.get('project_roots', [])
+            if folder.lower() not in [str(p).lower() for p in DEFAULT_ROOTS + [Path(r) for r in roots]]:
+                roots = roots + [folder]
+            save_state(project_roots=roots, hidden_roots=hidden)     # (a removed default comes back)
             PROJECTS = scan_projects()
             return self.json({'ok': True, 'path': folder})
         if action == 'remove_root':
-            roots = [r for r in load_state().get('project_roots', []) if r.lower() != str(body.get('path', '')).lower()]
-            save_state(project_roots=roots)
+            path = str(body.get('path', '')).lower()
+            st = load_state()
+            roots = [r for r in st.get('project_roots', []) if r.lower() != path]
+            hidden = st.get('hidden_roots', [])
+            if path in [str(p).lower() for p in DEFAULT_ROOTS] and path not in [h.lower() for h in hidden]:
+                hidden = hidden + [str(next(p for p in DEFAULT_ROOTS if str(p).lower() == path))]
+            save_state(project_roots=roots, hidden_roots=hidden)
             PROJECTS = scan_projects()
             return self.json({'ok': True})
         if action == 'build' and project:

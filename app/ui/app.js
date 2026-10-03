@@ -137,8 +137,9 @@ function renderPages() {
     <tr><th>Projects</th><td>
       <div class="roots">${(state.project_roots || []).map((r) => `<div class="root">
         <span class="root-path${r.exists ? '' : ' muted'}">${esc(r.path)}</span>
-        ${r.default ? '<span class="muted">default</span>'
-                    : `<button class="btn small" data-remove-root="${esc(r.path)}">Remove</button>`}</div>`).join('')}</div>
+        ${r.default ? '<span class="muted">default</span>' : ''}
+        <button class="btn small" data-remove-root="${esc(r.path)}">Remove</button></div>`).join('')
+        || '<span class="muted">No folders: add one below.</span>'}</div>
       <div class="roots-foot"><button class="btn small" id="addRoot">+ Add folder...</button>
         <span class="muted">${state.projects.length} projects found</span></div></td></tr>
     <tr><th>Toolchain</th><td>${esc(state.toolchain || 'none')}</td></tr>
