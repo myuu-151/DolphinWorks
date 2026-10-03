@@ -247,7 +247,13 @@ a.fix { color: #8fb5ff; }
 .gdb-card { overflow-y: auto; min-height: 0; }
 .gdb-card code { font-family: Consolas, monospace; color: #bfe0c8; }
 .gdb-card .gdb-for { margin: 6px 0 14px; font-size: 12.5px; overflow-wrap: anywhere; }
-.gdb-card .gdb-head { margin: 4px 0 8px; font-size: 14px; font-weight: 600; }
+.gdb-more { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 6px; background: #10141b; }
+.gdb-more summary { cursor: pointer; padding: 7px 10px; font-size: 13.5px; font-weight: 600; list-style: none;
+  display: flex; justify-content: space-between; align-items: center; }
+.gdb-more summary::-webkit-details-marker { display: none; }
+.gdb-more summary::after { content: ""; width: 11px; height: 7px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.5 6 6l4.5-4.5' fill='none' stroke='%23aab4c4' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; transition: transform .15s; }
+.gdb-more[open] summary::after { transform: rotate(180deg); }
+.gdb-more .gdb-cmds { margin: 0; padding: 0 10px 10px; }
 .gdb-cmds { margin: 0 0 14px; font-size: 12.5px; }
 .gdb-cmds dt { font-family: Consolas, "Cascadia Mono", monospace; color: #bfe0c8; margin-top: 6px; }
 .gdb-cmds dd { margin: 1px 0 0; color: var(--muted); }

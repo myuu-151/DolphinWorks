@@ -119,7 +119,14 @@
             must be running and built with libogc's debug stub (<code>DEBUG_Init</code>).</p>
           <button class="btn primary wide" id="startGdb">▶ Start GDB</button>
           <p class="muted gdb-for" id="gdbFor"></p>
-          <h3 class="gdb-head">Commands</h3>
+          <p class="muted">It opens in its own window, connected to the Gecko (the console lets go of the port).
+            By hand:</p>
+          <pre class="code" id="gdbHow">powerpc-eabi-gdb.exe game.elf
+(gdb) target remote \\.\COM3</pre>
+          <div id="geckoBig"></div>
+          <p class="muted">The USB Gecko goes in memory card slot A. In Dolphin, DolphinWorks' profiles emulate one in slot B.</p>
+          <details class="gdb-more">
+          <summary>Commands</summary>
           <dl class="gdb-cmds">
             <dt>continue</dt><dd>run the game (<b>c</b>)</dd>
             <dt>Ctrl+C</dt><dd>pause it, wherever it is</dd>
@@ -135,12 +142,8 @@
             <dt>delete</dt><dd>remove all breakpoints</dd>
             <dt>quit</dt><dd>leave GDB</dd>
           </dl>
-          <p class="muted">It opens in its own window, connected to the Gecko (the console lets go of the port).
-            By hand:</p>
-          <pre class="code" id="gdbHow">powerpc-eabi-gdb.exe game.elf
-(gdb) target remote \\.\COM3</pre>
-          <div id="geckoBig"></div>
-          <p class="muted">The USB Gecko goes in memory card slot A. In Dolphin, DolphinWorks' profiles emulate one in slot B.</p></div>
+          </details>
+        </div>
       </div>
     </div>
 
