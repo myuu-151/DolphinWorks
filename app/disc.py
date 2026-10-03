@@ -420,8 +420,11 @@ def set_card_picture(card, key, frames):
     if n > 1 and not entry.get('animates') and not entry['in_project']:
         raise ValueError("This disc keeps a still icon: an animated one is a bigger file, and that means rebuilding the disc.")
     if n > 1 and not entry.get('animates'):
-        raise ValueError("This game takes a still icon only: its code passes SYS_SetSaveInfo 0 frames. Have it pass "
-                         "the frame count (save_icon.bin's size: n x 1024 + 512 bytes), then an animated one goes in.")
+        fix = icon_code_fix(card)
+        raise StillOnly("This game's code takes a still icon only: it passes SYS_SetSaveInfo 0 frames."
+                        + ('' if fix else " DolphinWorks can't see how to change it: have it pass the frame count "
+                                          "(save_icon.bin's size: n x 1024 + 512 bytes)."),
+                        Path(fix[0]).name if fix else None)
     data = _icon_data(frames) if key == 'icon' else encode_ci8(frames, 96, 32)
     note = None
     for place in entry['places']:
@@ -462,6 +465,43 @@ def set_card_picture(card, key, frames):
             f.seek(place.get('offset', 0))
             f.write(out)
     return note
+
+
+class StillOnly(ValueError):
+    """A game whose code takes a still icon only. fixable: the code file DolphinWorks can change (or None)."""
+    def __init__(self, message, fixable=None):
+        super().__init__(message)
+        self.fixable = fixable
+
+
+def icon_code_fix(card):
+    """How to make a game's C++ take an animated icon: (its file, the new text), or None if it can't be seen.
+    Where the code loads save_icon.bin (SYS_AcquireFileData(..."save_icon.bin", ..., data, size)) and passes
+    SYS_SetSaveInfo 0 frames: the frames come from the size instead (2048 bytes: a still; n x 1024 + 512: n
+    frames), and a check that the size is 2048 lets frames through too."""
+    if not card or not card.get('text_in') or not card['text_in'].lower().endswith(('.cpp', '.cc', '.c')):
+        return None
+    path = Path(card['text_in'])
+    text = path.read_bytes().decode('utf-8', 'replace')
+    load = re.search(r'SYS_AcquireFileData\(\s*"[^"]*save_icon\.bin"\s*,[^,]*,[^,]*,\s*\w+\s*,\s*(\w+)\s*\)', text)
+    call = re.search(r'SYS_SetSaveInfo\(\s*"[^"]*"\s*,\s*"[^"]*"\s*,[^,]*,\s*(0)\s*,', text)
+    if not load or not call:
+        return None
+    size = load.group(1)
+    frames = f'({size} == 2048 ? 0u : ({size} - 512) / 1024)'
+    text = text[:call.start(1)] + frames + text[call.end(1):]
+    ok = f'({size} == 2048 || ({size} > 512 && ({size} - 512) % 1024 == 0 && ({size} - 512) / 1024 <= 8))'
+    text = re.sub(r'\b' + size + r'\s*==\s*2048\b(?!\s*\?)', lambda m: ok, text)   # (the check, not the new frames)
+    return str(path), text
+
+
+def make_animated(card):
+    """Changes the game's code to take an animated icon (icon_code_fix). Returns the file changed."""
+    fix = icon_code_fix(card)
+    if not fix:
+        raise ValueError("DolphinWorks can't see how to change this game's code for an animated icon.")
+    Path(fix[0]).write_bytes(fix[1].encode('utf-8'))
+    return fix[0]
 
 
 def make_bnr(path, start_from=None, default=None):

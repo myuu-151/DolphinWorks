@@ -154,7 +154,8 @@ function discCards(p) {
         </dl></div>
       <p class="note">What the memory card screen shows beside the game's saves${where ? ` (from ${esc(where)})` : ''}.
         ${!where ? 'Saved in the disc image.' : onDisc ? 'Pictures are saved in the disc image too; the title and description go in at the next build.'
-                 : 'Edits go in at the next build.'}</p></div>`;
+                 : 'Edits go in at the next build.'}
+        ${where && octave && !state.busy ? '<a class="link" data-act="build">Build now</a>' : ''}</p></div>`;
   }
   return details + banner + card;
 }
@@ -226,9 +227,22 @@ async function replacePicture(which, files) {
     note = ` ${frames.length} frames: every ${(frames.length / 8).toFixed(1).replace('.0', '')}th kept (8 at most).`;
     frames = Array.from({ length: 8 }, (_, i) => frames[Math.floor(i * frames.length / 8)]);
   }
-  const r = await api('/api/picture', { id: p.id, which, frames });
+  let r = await api('/api/picture', { id: p.id, which, frames });
+  let build = false;
+  // A game whose code takes a still icon: its code changed to take frames too, then built (the disc has it all)
+  if (!r.ok && r.fixable && confirm(`${p.title}'s code takes a still memory card icon only.
+
+`
+      + `Change its code (${r.fixable}) to take an animated one too, and build it?`)) {
+    r = await api('/api/picture', { id: p.id, which, frames, fix_code: true });
+    build = r.ok;
+  }
   artV++;
   await refresh();
+  if (build) {
+    toast(`Animated icon: ${frames.length} frames. ${r.fixable || 'Its code'} changed: building it…`);
+    return act('build');
+  }
   toast(r.ok ? (frames.length > 1 ? `Animated icon: ${frames.length} frames.` : 'Picture replaced.') + note + (r.message ? ' ' + r.message : '')
              : r.message || 'That did not work.');
 }

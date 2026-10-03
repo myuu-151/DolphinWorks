@@ -1012,8 +1012,15 @@ class Handler(BaseHTTPRequestHandler):
                 if action == 'disc_text':
                     edit_text(project, body.get('field'), str(body.get('value', '')))
                 else:
+                    if body.get('fix_code') and project['octp']:    # (the game's code changed to take this: then a build)
+                        changed = disc.make_animated(project['card'])
+                        JOBS.emit('line', text=f'Changed {changed}: it takes an animated memory card icon now', level='info')
+                        project['card'] = disc.read_card(Path(project['octp']).parent, disc.read_disc(project['iso']) if project['built'] else None)
                     frames = body.get('frames') or [body.get('rgba', '')]
                     note = edit_picture(project, body.get('which'), [base64.b64decode(f) for f in frames])
+            except disc.StillOnly as e:
+                # (an Octave project's code DolphinWorks can change: the app offers to, and to build it)
+                return self.json({'ok': False, 'message': str(e), 'fixable': e.fixable if project['octp'] else None})
             except ValueError as e:
                 return self.json({'ok': False, 'message': str(e)})
             except PermissionError:
