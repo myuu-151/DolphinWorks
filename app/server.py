@@ -610,7 +610,7 @@ def update_asset_settings(project, source, settings):
         data = {}
     entry = data.setdefault('assets', {}).setdefault(source, {})
     allowed = {'name', 'filter', 'wrap', 'mipmaps', 'force_hq', 'downsample', 'mode', 'rate', 'volume', 'pitch',
-               'max_instances', 'quality', 'scale', 'lit', 'cull', 'preset', 'width', 'height', 'fps', 'audio_channels',
+               'max_instances', 'quality', 'scale', 'lit', 'cull', 'preset', 'width', 'height', 'fps', 'audio_channels', 'sample_rate',
                'native_resolution', 'native_fps', 'native_audio'}
     for k, v in settings.items():
         if k in allowed:

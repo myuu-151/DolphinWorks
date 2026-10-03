@@ -805,6 +805,7 @@ function renderAssetPane(path, a, url) {
       <dt>Frame rate</dt><dd>${num('fps', 1, 1, 60)} <span class="muted">fps</span></dd>` : ''}
       <dt>Quality</dt><dd>${num('quality', 1, 2, 31)} <span class="muted">JPEG: 2 best … 31 smallest</span></dd>
       <dt>Audio</dt><dd>${sel('audio_channels', [[2, 'Stereo'], [1, 'Mono']])}</dd>
+      ${s.native_audio ? '' : `<dt>Sample rate</dt><dd>${sel('sample_rate', [[11025, '11 kHz'], [22050, '22 kHz'], [32000, '32 kHz'], [44100, '44.1 kHz'], [48000, '48 kHz']])}</dd>`}
       <dt>Keep the source's</dt><dd><label class="check">${chk('native_resolution')} size</label>
         <label class="check">${chk('native_fps')} frame rate</label> <label class="check">${chk('native_audio')} audio rate</label></dd>`
     : a.kind === 'mesh' ? `
@@ -847,13 +848,23 @@ function renderAssetPane(path, a, url) {
   pane.querySelectorAll('[data-set]').forEach((el) => el.onchange = async () => {
     const key = el.dataset.set;
     let value = el.type === 'checkbox' ? el.checked : el.value;
-    if (['downsample', 'rate', 'max_instances', 'quality', 'width', 'height', 'fps', 'audio_channels'].includes(key)) value = parseInt(value, 10);
+    if (['downsample', 'rate', 'max_instances', 'quality', 'width', 'height', 'fps', 'audio_channels', 'sample_rate'].includes(key)) value = parseInt(value, 10);
     if (['volume', 'pitch', 'scale'].includes(key)) value = parseFloat(value);
     const r = await api('/api/asset_settings', { id: project().id, source: a.source, settings: { [key]: value } });
     if (!r.ok) return toast(r.message);
+    const box = pane.querySelector('.casset'), media = pane.querySelector('video, audio');
+    C.keepView = { path, scroll: box ? box.scrollTop : 0, time: media ? media.currentTime : 0, playing: media ? !media.paused : false };
     await loadContent();
   });
   $('#cCopyLua').onclick = () => { navigator.clipboard.writeText($('#cLuaLine').textContent); toast('Copied'); };
+  if (C.keepView && C.keepView.path === path) {               // (redrawn for a setting: where it was)
+    const box = pane.querySelector('.casset'), media = pane.querySelector('video, audio'), keep = C.keepView;
+    if (box) box.scrollTop = keep.scroll;
+    if (media && keep.time) {
+      media.addEventListener('loadedmetadata', () => { media.currentTime = keep.time; if (keep.playing) media.play().catch(() => {}); }, { once: true });
+    }
+  }
+  C.keepView = null;
   $('#cConvertOne').onclick = () => $('#cConvert').click();
 }
 
