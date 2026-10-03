@@ -45,8 +45,6 @@ and SD cards as they're plugged in; and the build log, live. It's an app of its 
 taskbar button (WebView2, built into Windows 11), with nothing to install but Python. Without WebView2 it
 opens in an Edge window instead.
 
-![The DolphinWorks app](docs/app.png)
-
 ## Running a build
 
 | Target | Method |
