@@ -49,6 +49,10 @@ opens in an Edge window instead.
 - **Debug, on real hardware through a USB Gecko:** a live console (what the game sends, and a line to send
   it) and **Start GDB**: breakpoints, stepping and crashes caught on the console, in GDB.
 - **Disc images on their own** (homebrew, tests) are listed too, to run in Dolphin or put on an SD card.
+- **What the disc says, editable:** the game ID and name, the banner Swiss and Dolphin show (its picture,
+  title, maker and description), and the memory card's icon, banner, title and description. Click one to
+  change it, or a picture to replace it. Edits go into the disc image, and into an Octave project's own files
+  (opening.bnr, SaveInfo.lua, save_icon.bin) so the next build keeps them.
 
 ### Hardware tests
 

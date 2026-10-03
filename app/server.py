@@ -12,7 +12,9 @@ directly, it opens Microsoft Edge in app mode, with a profile of its own, and cl
 
 Only Python's standard library: nothing to install.
 """
+import base64
 import ctypes
+import hashlib
 import json
 import os
 import queue
@@ -26,6 +28,8 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+import disc
 
 HERE = Path(__file__).resolve().parent
 UI = HERE / 'ui'
@@ -335,6 +339,57 @@ def scan_disc_images(roots, projects):
     return found
 
 
+def disc_details(p, octave):
+    """What the disc says about itself -- its header, its banner (opening.bnr: the picture, title, maker and
+    description Swiss and Dolphin show) -- and what the memory card shows for its saves (title, description,
+    icon, banner). The Project Details, Banner and Memory Card cards show them, and edit them in place."""
+    info = disc.read_disc(p['iso']) if p['built'] else None
+    folder = Path(p['octp']).parent if p['octp'] else None
+    own = folder / 'opening.bnr' if folder else None            # an Octave project's own: what its builds put on the disc
+    own_bnr = disc.read_bnr(own, 0, own.stat().st_size) if own and own.exists() else None
+    p['disc'] = {k: v for k, v in info.items() if k not in ('bnr', 'card_icon', 'card_banner')} if info else None
+    p['bnr'] = (info and info['bnr']) or own_bnr                # (what the disc shows; before a build, the project's)
+    p['bnr_places'] = [b for b in ((info or {}).get('bnr'), own_bnr) if b]
+    p['bnr_file'] = str(own) if own else None
+    p['bnr_default'] = str(octave / 'Standalone' / 'Tools' / 'opening.bnr') if octave else None
+    p['card'] = disc.read_card(folder, info)
+
+
+def edit_banners(project):
+    """The banners an edit goes into: the disc's, and an Octave project's own (made if it has none, so the
+    next build keeps the edit)."""
+    places = list(project['bnr_places'])
+    if project['bnr_file'] and not Path(project['bnr_file']).exists():
+        disc_bnr = places[0] if places else None
+        places.append(disc.make_bnr(project['bnr_file'], disc_bnr, project['bnr_default']))
+    if not places:
+        raise ValueError('This disc has no banner (opening.bnr): adding one means rebuilding the disc.')
+    return places
+
+
+def edit_text(project, field, value):
+    if field in ('game_id', 'name'):
+        if not project['disc']:
+            raise ValueError('Build it first: there is no disc image yet.')
+        disc.write_header(project['iso'], field, value)
+    elif field in disc.BNR_TEXT:
+        for bnr in edit_banners(project):
+            disc.write_bnr(bnr, field, value)
+    elif field in ('card_title', 'card_description'):
+        disc.set_card_text(project['card'], field[len('card_'):], value)
+    else:
+        raise ValueError(f'Not a field: {field}')
+
+
+def edit_picture(project, which, rgba):
+    if which == 'banner':
+        disc.set_bnr_picture(edit_banners(project), rgba)
+    elif which in ('card_icon', 'card_banner'):
+        disc.set_card_picture(project['card'], which[len('card_'):], rgba)
+    else:
+        raise ValueError(f'Not a picture: {which}')
+
+
 def scan_projects():
     seen, projects = set(), []
     roots = project_roots()
@@ -384,8 +439,10 @@ def scan_projects():
     titles = [p['title'] for p in projects]
     for p in projects:
         p['folder'] = Path(p['root']).name if titles.count(p['title']) > 1 else ''
-    for i, p in enumerate(projects):
-        p['id'] = str(i)
+    octave = find_octave()
+    for p in projects:
+        p['id'] = hashlib.sha1(p['key'].encode()).hexdigest()[:12]     # (its own: an edit re-sorts the list)
+        disc_details(p, octave)
     return projects
 
 
@@ -885,6 +942,12 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == '/api/image':
             project = by_id(query.get('id', [''])[0])
             kind = query.get('kind', ['banner'])[0]
+            if project and kind in ('disc_banner', 'card_icon', 'card_banner'):     # (from the disc and the game's files)
+                frame = query.get('frame', [''])[0]
+                png = (disc.bnr_picture(project['bnr']) if kind == 'disc_banner' and project.get('bnr')
+                       else disc.card_picture(project.get('card'), kind[len('card_'):], int(frame) if frame.isdigit() else None)
+                       if kind != 'disc_banner' else None)
+                return self.send(200, png, 'image/png') if png else self.send(404)
             path = project and kind in ('banner', 'screenshot', 'icon') and project.get(kind)   # (pictures only)
             if path and Path(path).exists():
                 return self.send(200, Path(path).read_bytes(), TYPES.get(Path(path).suffix.lower(), 'image/png'))
@@ -937,6 +1000,23 @@ class Handler(BaseHTTPRequestHandler):
                 names.pop(project['key'], None)                         # (empty, or its own: back to its own)
             save_state(names=names)
             PROJECTS = scan_projects()
+            return self.json({'ok': True})
+        if action in ('disc_text', 'picture') and project:
+            if JOBS.busy:
+                return self.json({'ok': False, 'message': 'Wait for the build to finish.'})
+            try:
+                if action == 'disc_text':
+                    edit_text(project, body.get('field'), str(body.get('value', '')))
+                else:
+                    edit_picture(project, body.get('which'), base64.b64decode(body.get('rgba', '')))
+            except ValueError as e:
+                return self.json({'ok': False, 'message': str(e)})
+            except PermissionError:
+                return self.json({'ok': False, 'message': 'The disc image is in use (running in Dolphin?): close it and try again.'})
+            except OSError as e:
+                return self.json({'ok': False, 'message': f'Not written: {e}'})
+            finally:
+                PROJECTS = scan_projects()
             return self.json({'ok': True})
         if action == 'gecko_connect':
             ok, message = GECKO.connect()

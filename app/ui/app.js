@@ -30,7 +30,12 @@ function toast(text) {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const project = () => state && state.projects.find((p) => p.id === selected);
-const image = (p, kind) => `/api/image?id=${p.id}&kind=${kind}&v=${encodeURIComponent(p.last_build || '')}`;
+let artV = 0;                                      // (bumped by an edit: the pictures again)
+const image = (p, kind, extra = '') => `/api/image?id=${p.id}&kind=${kind}${extra}&v=${encodeURIComponent(p.last_build || '')}.${artV}`;
+// the list's picture: the game's memory card icon (its first frame), else an icon.png beside it, else its art
+const thumb = (p) => p.card && p.card.icon ? `<div class="pthumb icon pixel" style="background-image:url('${image(p, 'card_icon', '&frame=0')}')"></div>`
+  : p.icon || p.banner ? `<div class="pthumb${p.icon ? ' icon' : ''}" style="background-image:url('${image(p, p.icon ? 'icon' : 'banner')}')"></div>`
+  : `<div class="pthumb">${esc(p.title[0] || '?')}</div>`;
 
 // --- state ---------------------------------------------------------------------------------------
 
@@ -57,8 +62,7 @@ function renderList() {
   const list = state.projects.filter((p) => !q || p.title.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
   $('#projectList').innerHTML = list.map((p) => `
     <div class="pitem ${p.id === selected ? 'active' : ''}" data-id="${p.id}">
-      ${p.icon || p.banner ? `<div class="pthumb${p.icon ? ' icon' : ''}" style="background-image:url('${image(p, p.icon ? 'icon' : 'banner')}')"></div>`
-                 : `<div class="pthumb">${esc(p.title[0] || '?')}</div>`}
+      ${thumb(p)}
       <div style="min-width:0"><div class="ptitle">${esc(p.title)}</div>
         <div class="pmeta">${p.folder ? esc(p.folder) : 'GameCube · ISO · ' + (!p.octp ? 'Disc image' : p.engine.includes('custom') ? 'Custom code' : 'Octave Engine')}</div></div>
     </div>`).join('') || '<div class="empty">No projects found.</div>';
@@ -82,18 +86,141 @@ function renderDetail() {
       <button class="action purple" data-act="deploy" ${p.built && !busy ? '' : 'disabled'}>${ICONS.pad}<div><b>Run on Hardware</b><span>Via SD card</span></div></button>
       <button class="action gray" data-act="editor" ${p.octp ? '' : 'disabled'}>${ICONS.edit}<div><b>Open in Editor</b><span>Octave</span></div></button>
     </div>
-    <div class="info-row">
-      <div class="subcard"><h3>Project Details</h3><dl class="kv">
-        <dt>Name</dt><dd>${esc(p.title)}</dd>
-        <dt>Platform</dt><dd>Nintendo GameCube</dd>
-        <dt>Output</dt><dd title="${esc(p.iso)}">${esc(p.iso.split(/[\\/]/).slice(-3).join('\\'))}</dd>
-        <dt>Engine</dt><dd>${esc(p.engine)}</dd>
-        <dt>Last Build</dt><dd>${esc(p.last_build || 'not built yet')}</dd>
-        <dt>Size</dt><dd>${p.size_mb ? p.size_mb + ' MB' : '-'}</dd>
-      </dl></div>
-      <div class="subcard"><h3>${p.screenshot ? 'Screenshot' : 'Artwork'}</h3>
-        <div class="shot" style="${p.screenshot || p.banner ? `background-image:url('${image(p, p.screenshot ? 'screenshot' : 'banner')}')` : ''}"></div></div>
-    </div>`;
+    <div class="info-row">${discCards(p)}</div>`;
+}
+
+// --- what the disc says about itself, and what its saves show: all editable ----------------------
+// Text: click it, type, Enter (Esc cancels). Pictures: click, choose one (it's fitted: 96 x 32, 32 x 32).
+// Written into the disc image in place, and into the project's own files so the next build keeps it.
+
+const LIMITS = { game_id: 6, name: 63, short_title: 31, short_maker: 31, title: 63, maker: 63, description: 127,
+                 card_title: 31, card_description: 31 };
+const fileName = (path) => String(path || '').split(/[\\/]/).pop();
+
+function editable(field, value, extra = '') {
+  return `<dd class="edit${extra}" data-field="${field}" title="Click to edit (up to ${LIMITS[field]} characters)">${esc(value) || '<i>none</i>'}</dd>`;
+}
+
+function picture(which, url, label, cls, frames = 1) {
+  return `<button class="pic ${cls}" data-pic="${which}" title="${label}: click to replace it with a picture of your own"
+    style="--frames:${frames};${url ? `background-image:url('${url}')` : ''}">${url ? '' : '<i>none</i>'}<span>Replace…</span></button>`;
+}
+
+function discCards(p) {
+  const d = p.disc, b = p.bnr, c = p.card;
+  const octave = !!p.octp;
+  const details = `<div class="subcard"><h3>Project Details</h3><dl class="kv">
+      ${d ? `<dt>Game ID</dt>${editable('game_id', d.game_id, ' mono')}
+             <dt>Disc Name</dt>${editable('name', d.name)}
+             <dt>Region</dt><dd title="${esc(d.region)}">${esc(d.region)}</dd>
+             <dt>Disc</dt><dd>${d.disc} (version 1.0${d.version})</dd>`
+          : '<dt>Disc</dt><dd>not built yet</dd>'}
+      <dt>Output</dt><dd title="${esc(p.iso)}">${esc(p.iso.split(/[\\/]/).slice(-3).join('\\'))}</dd>
+      <dt>Engine</dt><dd>${esc(p.engine)}</dd>
+      <dt>Last Build</dt><dd>${esc(p.last_build || 'not built yet')}</dd>
+      <dt>Size</dt><dd>${p.size_mb ? p.size_mb + ' MB' : '-'}</dd>
+    </dl>${d && octave ? '<p class="note">Octave writes the game ID (GOCT01) and the name back at its next build.</p>' : ''}</div>`;
+  const banner = `<div class="subcard"><h3>Disc Banner</h3>${b ? `
+      ${picture('banner', image(p, 'disc_banner'), 'The banner Swiss and Dolphin show', 'bnr')}
+      <dl class="kv">
+        <dt>Title</dt>${editable('title', b.title)}
+        <dt>Maker</dt>${editable('maker', b.maker)}
+        <dt>Description</dt>${editable('description', b.description, ' wrap')}
+        <dt>Short Title</dt>${editable('short_title', b.short_title)}
+        <dt>Short Maker</dt>${editable('short_maker', b.short_maker)}
+      </dl>
+      <p class="note">${octave ? (p.built ? 'Saved in the disc image and in the project\'s opening.bnr, so builds keep it.'
+                                          : 'From the project\'s opening.bnr: its builds put it on the disc.')
+                               : 'Saved in the disc image.'}</p>`
+      : `<p class="note">${octave ? 'No banner yet: the build gives the disc Octave\'s.' : 'This disc has no banner (no opening.bnr).'}</p>`}</div>`;
+  let card = '';
+  if (c) {
+    const frames = c.icon ? Math.max(1, c.icon.frames) : 0;
+    const onDisc = (c.icon && c.icon.on_disc) || (c.banner && c.banner.on_disc);
+    const where = [...new Set([c.text_in, ...(c.icon ? c.icon.places : []).concat(c.banner ? c.banner.places : [])
+      .filter((x) => x.kind !== 'disc').map((x) => x.path)].filter(Boolean))].map(fileName).join(', ');
+    card = `<div class="subcard wide"><h3>Memory Card</h3><div class="card-row">
+        ${c.icon ? picture('card_icon', image(p, 'card_icon'), frames > 1 ? `The save's icon (${frames} frames; a picture of your own makes it still)` : "The save's icon", frames > 1 ? 'cicon anim' : 'cicon', frames) : ''}
+        ${c.banner ? picture('card_banner', image(p, 'card_banner'), "The save's banner", 'bnr') : ''}
+        <dl class="kv">
+          ${c.title != null ? `<dt>Title</dt>${editable('card_title', c.title)}<dt>Description</dt>${editable('card_description', c.description)}` : ''}
+        </dl></div>
+      <p class="note">What the memory card screen shows beside the game's saves${where ? ` (from ${esc(where)})` : ''}.
+        ${!where ? 'Saved in the disc image.' : onDisc ? 'Pictures are saved in the disc image too; the title and description go in at the next build.'
+                 : 'Edits go in at the next build.'}</p></div>`;
+  }
+  return details + banner + card;
+}
+
+const loadImage = (file) => new Promise((ok, fail) => {
+  const img = new Image();
+  img.onload = () => ok(img);
+  img.onerror = () => fail(new Error('Not a picture.'));
+  img.src = URL.createObjectURL(file);
+});
+
+async function replacePicture(which, file) {
+  const p = project();
+  const [w, h] = which === 'card_icon' ? [32, 32] : [96, 32];
+  let img;
+  try { img = await loadImage(file); } catch (e) { return toast(e.message); }
+  // fitted: scaled to cover w x h, the middle kept
+  const scale = Math.max(w / img.width, h / img.height);
+  const canvas = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  const g = canvas.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, (w - img.width * scale) / 2, (h - img.height * scale) / 2, img.width * scale, img.height * scale);
+  const bytes = g.getImageData(0, 0, w, h).data;
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const r = await api('/api/picture', { id: p.id, which, rgba: btoa(bin) });
+  artV++;
+  await refresh();
+  toast(r.ok ? 'Picture replaced.' : r.message || 'That did not work.');
+}
+
+function bindDiscCards() {
+  const chooser = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', hidden: true });
+  document.body.append(chooser);
+  chooser.onchange = () => { if (chooser.files[0]) replacePicture(chooser.dataset.which, chooser.files[0]); chooser.value = ''; };
+  $('#detail').addEventListener('click', (e) => {
+    const pic = e.target.closest('.pic');
+    if (pic) {
+      chooser.dataset.which = pic.dataset.pic;
+      chooser.click();
+      return;
+    }
+    const dd = e.target.closest('dd.edit');
+    if (!dd || dd.isContentEditable) return;
+    const field = dd.dataset.field;
+    const p = project();
+    const old = { game_id: p.disc && p.disc.game_id, name: p.disc && p.disc.name, card_title: p.card && p.card.title,
+                  card_description: p.card && p.card.description }[field] ?? (p.bnr && p.bnr[field]) ?? '';
+    dd.textContent = old;
+    dd.contentEditable = 'plaintext-only';
+    dd.focus();
+    document.getSelection().selectAllChildren(dd);
+    let done = false;
+    const finish = async (save) => {
+      if (done) return;
+      done = true;
+      dd.contentEditable = 'false';
+      const value = dd.textContent.replace(/\s+/g, ' ').trim();
+      if (!save || value === old) return renderDetail();
+      const r = await api('/api/disc_text', { id: p.id, field, value });
+      await refresh();
+      toast(r.ok ? 'Saved.' : r.message || 'That did not work.');
+    };
+    dd.onbeforeinput = (k) => {                      // (no longer than its place in the disc)
+      const extra = (k.data || '').length - document.getSelection().toString().length;
+      if (k.inputType.startsWith('insert') && dd.textContent.length + extra > LIMITS[field]) k.preventDefault();
+    };
+    dd.onkeydown = (k) => {
+      if (k.key === 'Enter') { k.preventDefault(); finish(true); }
+      else if (k.key === 'Escape') { k.preventDefault(); finish(false); }
+    };
+    dd.onblur = () => finish(true);
+  });
 }
 
 function renderRight() {
@@ -279,6 +406,7 @@ function bindGecko() {
     geckoStatus(r);
   };
   $('#gcClear').onclick = () => { $('#gcLog').innerHTML = ''; };
+  bindDiscCards();
   // Rename: click the title, type, Enter (Esc cancels; empty: its own name again). DolphinWorks' name only.
   $('#detail').addEventListener('click', (e) => {
     const h = e.target.closest('#ptitle');

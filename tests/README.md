@@ -31,7 +31,8 @@ Press **A** on the controller and GDB should stop on the line in `crash_here()` 
 
 `build.bat` builds both with the GameCube toolchain (gekko-toolchain or devkitPro) and makes the disc
 images with `make_iso.py`. It's the same disc layout as Octave-libogc's Package Project, with its
-open-source apploader (`gcn_apploader.img`, public domain).
+open-source apploader (`gcn_apploader.img`, public domain), and each test's banner
+(`opening.bnr`, beside its DOL).
 
 In your own program, the debug stub is two lines plus `-ldb` (see `gdbtest/source/gdbtest.c`):
 
