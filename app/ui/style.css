@@ -128,6 +128,7 @@ svg { fill: currentColor; }
 .kv dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subcard.wide { grid-column: 1 / -1; }
 .kv dd.wrap { white-space: normal; }
+.kv dd .dim { color: var(--muted); font-size: 12.5px; }
 .kv dd.mono { font-family: Consolas, monospace; letter-spacing: .5px; }
 .kv dd.edit { cursor: text; border-radius: 4px; margin: -1px -6px; padding: 1px 6px; }
 .kv dd.edit:hover { background: #10141b; }

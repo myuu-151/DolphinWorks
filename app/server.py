@@ -381,11 +381,14 @@ def edit_text(project, field, value):
         raise ValueError(f'Not a field: {field}')
 
 
-def edit_picture(project, which, rgba):
+def edit_picture(project, which, frames):
+    """A new picture (RGBA frames: more than one only for the memory card's icon, which animates). A note, or None."""
     if which == 'banner':
-        disc.set_bnr_picture(edit_banners(project), rgba)
+        if len(frames) != 1:
+            raise ValueError("The disc's banner is one picture: only the memory card's icon animates.")
+        disc.set_bnr_picture(edit_banners(project), frames[0])
     elif which in ('card_icon', 'card_banner'):
-        disc.set_card_picture(project['card'], which[len('card_'):], rgba)
+        return disc.set_card_picture(project['card'], which[len('card_'):], frames)
     else:
         raise ValueError(f'Not a picture: {which}')
 
@@ -1004,11 +1007,13 @@ class Handler(BaseHTTPRequestHandler):
         if action in ('disc_text', 'picture') and project:
             if JOBS.busy:
                 return self.json({'ok': False, 'message': 'Wait for the build to finish.'})
+            note = None
             try:
                 if action == 'disc_text':
                     edit_text(project, body.get('field'), str(body.get('value', '')))
                 else:
-                    edit_picture(project, body.get('which'), base64.b64decode(body.get('rgba', '')))
+                    frames = body.get('frames') or [body.get('rgba', '')]
+                    note = edit_picture(project, body.get('which'), [base64.b64decode(f) for f in frames])
             except ValueError as e:
                 return self.json({'ok': False, 'message': str(e)})
             except PermissionError:
@@ -1017,7 +1022,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({'ok': False, 'message': f'Not written: {e}'})
             finally:
                 PROJECTS = scan_projects()
-            return self.json({'ok': True})
+            return self.json({'ok': True, 'message': note})
         if action == 'gecko_connect':
             ok, message = GECKO.connect()
             return self.json({'ok': ok, 'message': message, **GECKO.status()})

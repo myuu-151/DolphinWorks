@@ -143,10 +143,14 @@ function discCards(p) {
     const where = [...new Set([c.text_in, ...(c.icon ? c.icon.places : []).concat(c.banner ? c.banner.places : [])
       .filter((x) => x.kind !== 'disc').map((x) => x.path)].filter(Boolean))].map(fileName).join(', ');
     card = `<div class="subcard wide"><h3>Memory Card</h3><div class="card-row">
-        ${c.icon ? picture('card_icon', image(p, 'card_icon'), frames > 1 ? `The save's icon (${frames} frames; a picture of your own makes it still)` : "The save's icon", frames > 1 ? 'cicon anim' : 'cicon', frames) : ''}
+        ${c.icon ? picture('card_icon', image(p, 'card_icon'), c.icon.animates
+            ? "The save's icon. To animate it, choose several pictures (a frame each, in name order), an animated GIF, or a strip of frames side by side: 8 frames at most"
+            : "The save's icon", frames > 1 ? 'cicon anim' : 'cicon', frames) : ''}
         ${c.banner ? picture('card_banner', image(p, 'card_banner'), "The save's banner", 'bnr') : ''}
         <dl class="kv">
           ${c.title != null ? `<dt>Title</dt>${editable('card_title', c.title)}<dt>Description</dt>${editable('card_description', c.description)}` : ''}
+          ${c.icon ? `<dt>Icon</dt><dd class="wrap">${frames > 1 ? `Animated, ${frames} frames` : 'Still'}<span class="dim">${c.icon.animates
+            ? ' · click it for a new one: several pictures, a GIF or a strip animate it' : " · this game's code takes a still icon"}</span></dd>` : ''}
         </dl></div>
       <p class="note">What the memory card screen shows beside the game's saves${where ? ` (from ${esc(where)})` : ''}.
         ${!where ? 'Saved in the disc image.' : onDisc ? 'Pictures are saved in the disc image too; the title and description go in at the next build.'
@@ -162,34 +166,82 @@ const loadImage = (file) => new Promise((ok, fail) => {
   img.src = URL.createObjectURL(file);
 });
 
-async function replacePicture(which, file) {
-  const p = project();
-  const [w, h] = which === 'card_icon' ? [32, 32] : [96, 32];
-  let img;
-  try { img = await loadImage(file); } catch (e) { return toast(e.message); }
-  // fitted: scaled to cover w x h, the middle kept
-  const scale = Math.max(w / img.width, h / img.height);
+// A picture fitted to w x h: scaled to cover it, the middle kept. From a source's (sx, sy, sw, sh) part.
+function fitted(source, w, h, sx = 0, sy = 0, sw = source.displayWidth || source.width, sh = source.displayHeight || source.height) {
+  const scale = Math.max(w / sw, h / sh);
   const canvas = Object.assign(document.createElement('canvas'), { width: w, height: h });
   const g = canvas.getContext('2d');
   g.imageSmoothingQuality = 'high';
-  g.drawImage(img, (w - img.width * scale) / 2, (h - img.height * scale) / 2, img.width * scale, img.height * scale);
+  g.drawImage(source, sx, sy, sw, sh, (w - sw * scale) / 2, (h - sh * scale) / 2, sw * scale, sh * scale);
   const bytes = g.getImageData(0, 0, w, h).data;
   let bin = '';
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  const r = await api('/api/picture', { id: p.id, which, rgba: btoa(bin) });
+  return btoa(bin);
+}
+
+// The frames in what was chosen: several pictures (one a frame, in name order), an animated GIF / WebP / PNG,
+// or a strip of square frames side by side; else the one picture.
+async function framesOf(files, w, h, animate) {
+  if (animate && files.length > 1) {
+    const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const out = [];
+    for (const f of sorted) out.push(fitted(await loadImage(f), w, h));
+    return out;
+  }
+  const file = files[0];
+  if (animate && 'ImageDecoder' in window && /^image\/(gif|webp|png|apng)$/.test(file.type)) {
+    try {
+      const decoder = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type });
+      await decoder.tracks.ready;
+      await decoder.completed;
+      const count = decoder.tracks.selectedTrack.frameCount;
+      if (count > 1) {
+        const out = [];
+        for (let i = 0; i < count; i++) {
+          const { image: frame } = await decoder.decode({ frameIndex: i });
+          out.push(fitted(frame, w, h));
+          frame.close();
+        }
+        decoder.close();
+        return out;
+      }
+      decoder.close();
+    } catch (e) { /* (not animated, or not decodable that way: as a picture) */ }
+  }
+  const img = await loadImage(file);
+  const n = img.width / img.height;
+  if (animate && n >= 2 && Number.isInteger(n)) {                 // a strip: n square frames
+    return Array.from({ length: n }, (_, i) => fitted(img, w, h, i * img.height, 0, img.height, img.height));
+  }
+  return [fitted(img, w, h)];
+}
+
+async function replacePicture(which, files) {
+  const p = project();
+  const [w, h] = which === 'card_icon' ? [32, 32] : [96, 32];
+  let frames;
+  try { frames = await framesOf(files, w, h, which === 'card_icon'); } catch (e) { return toast(e.message); }
+  let note = '';
+  if (frames.length > 8) {                         // (the card plays 8 at most: 8 spread over them)
+    note = ` ${frames.length} frames: every ${(frames.length / 8).toFixed(1).replace('.0', '')}th kept (8 at most).`;
+    frames = Array.from({ length: 8 }, (_, i) => frames[Math.floor(i * frames.length / 8)]);
+  }
+  const r = await api('/api/picture', { id: p.id, which, frames });
   artV++;
   await refresh();
-  toast(r.ok ? 'Picture replaced.' : r.message || 'That did not work.');
+  toast(r.ok ? (frames.length > 1 ? `Animated icon: ${frames.length} frames.` : 'Picture replaced.') + note + (r.message ? ' ' + r.message : '')
+             : r.message || 'That did not work.');
 }
 
 function bindDiscCards() {
   const chooser = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', hidden: true });
   document.body.append(chooser);
-  chooser.onchange = () => { if (chooser.files[0]) replacePicture(chooser.dataset.which, chooser.files[0]); chooser.value = ''; };
+  chooser.onchange = () => { if (chooser.files.length) replacePicture(chooser.dataset.which, chooser.files); chooser.value = ''; };
   $('#detail').addEventListener('click', (e) => {
     const pic = e.target.closest('.pic');
     if (pic) {
       chooser.dataset.which = pic.dataset.pic;
+      chooser.multiple = pic.dataset.pic === 'card_icon';   // (the icon's frames: several pictures)
       chooser.click();
       return;
     }

@@ -290,6 +290,7 @@ def read_card(folder, info):
     """The memory card's title, description, icon and banner, and where each is kept (to write it back)."""
     card = {'title': None, 'description': None, 'text_in': None, 'icon': None, 'banner': None}
     places = {'icon': [], 'banner': []}
+    frames_arg = None
     if folder:
         folder = Path(folder)
         for lua in _project_files(folder, 'SaveInfo.lua', 2)[:1]:
@@ -305,9 +306,10 @@ def read_card(folder, info):
         if card['title'] is None:
             for src in _project_files(folder, '*.cpp', 2):
                 text = src.read_bytes().decode('utf-8', 'replace')
-                m = re.search(r'SYS_SetSaveInfo\(\s*"([^"]*)"\s*,\s*"([^"]*)"', text)
+                m = re.search(r'SYS_SetSaveInfo\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,[^,]*,\s*([^,]+?)\s*,', text)
                 if m:
                     card['title'], card['description'], card['text_in'] = m.group(1), m.group(2), str(src)
+                    frames_arg = m.group(3)                 # (the frame count it passes: 0 is a still icon, always)
                     break
         for key, name in (('icon', 'save_icon.bin'), ('banner', 'save_banner.bin')):
             for f in _project_files(folder, name):
@@ -323,6 +325,12 @@ def read_card(folder, info):
             card[key] = {'places': places[key], 'size': size, 'frames': _icon_frames(size) if key == 'icon' else 1,
                          'on_disc': any(p['kind'] == 'disc' for p in places[key]),
                          'in_project': any(p['kind'] != 'disc' for p in places[key])}
+    if card['icon']:
+        # Whether a new icon can be animated: Lua (System.SetSaveInfo tells frames by the length) can; C++ can if
+        # it doesn't pass a fixed 0 frames; a disc on its own only in the room its icon has.
+        kinds = {p['kind'] for p in card['icon']['places']}
+        card['icon']['animates'] = ('lua' in kinds or ('file' in kinds and folder and frames_arg not in ('0', None))
+                                    or (kinds == {'disc'} and card['icon']['size'] != 2048))
     return card if (card['title'] or card['icon'] or card['banner']) else None
 
 
@@ -377,12 +385,9 @@ def set_card_text(card, field, value):
     path.write_bytes((text[:start] + value + text[end:]).encode('utf-8'))
 
 
-def _card_encode(key, size, rgba):
-    if key == 'banner':
-        return encode_ci8([rgba], 96, 32)
-    if size == 2048:
-        return encode_rgb5a3(rgba, 32, 32)
-    return encode_ci8([rgba] * _icon_frames(size), 32, 32)          # (an animated icon's place: the picture, still)
+def _icon_data(frames):
+    """An icon: one frame is a still (RGB5A3, 2048 bytes); more, CI8 frames and their palette."""
+    return encode_rgb5a3(frames[0], 32, 32) if len(frames) == 1 else encode_ci8(frames, 32, 32)
 
 
 def set_bnr_picture(bnrs, rgba):
@@ -396,20 +401,34 @@ def set_bnr_picture(bnrs, rgba):
             f.write(data)
 
 
-def set_card_picture(card, key, rgba):
-    """A new memory card icon (key 'icon', 32 x 32) or banner ('banner', 96 x 32) from RGBA bytes, written
-    everywhere the game keeps it: its project's files and the disc image (in place)."""
+def set_card_picture(card, key, frames):
+    """A new memory card icon (key 'icon', 32 x 32) or banner ('banner', 96 x 32): RGBA bytes, or for the icon a
+    list of 1 to 8 frames (more than one animates it: a frame every 12 retraces, in a loop). Written everywhere
+    the game keeps it: its project's files and the disc image (in place, where it fits). Returns a note, or None."""
     entry = card and card.get(key)
     if not entry:
         raise ValueError(f"DolphinWorks can't find where this game keeps its memory card {key}.")
-    if len(rgba) != (32 if key == 'icon' else 96) * 32 * 4:
-        raise ValueError('The icon is 32 x 32.' if key == 'icon' else 'The banner is 96 x 32.')
+    frames = frames if isinstance(frames, list) else [frames]
+    w = 32 if key == 'icon' else 96
+    if key == 'banner' and len(frames) != 1:
+        raise ValueError("The memory card's banner is one picture: only the icon animates.")
+    if not 1 <= len(frames) <= 8:
+        raise ValueError('An icon has 1 to 8 frames.')
+    if any(len(f) != w * 32 * 4 for f in frames):
+        raise ValueError(f'The {key} is {w} x 32.')
+    n = len(frames)
+    if n > 1 and not entry.get('animates') and not entry['in_project']:
+        raise ValueError("This disc keeps a still icon: an animated one is a bigger file, and that means rebuilding the disc.")
+    if n > 1 and not entry.get('animates'):
+        raise ValueError("This game takes a still icon only: its code passes SYS_SetSaveInfo 0 frames. Have it pass "
+                         "the frame count (save_icon.bin's size: n x 1024 + 512 bytes), then an animated one goes in.")
+    data = _icon_data(frames) if key == 'icon' else encode_ci8(frames, 96, 32)
+    note = None
     for place in entry['places']:
         if place['kind'] == 'lua':
             path = Path(place['path'])
             text = path.read_bytes().decode('utf-8', 'replace')
             start, end, _old = _lua_hex(text, key)
-            data = encode_rgb5a3(rgba, 32, 32) if key == 'icon' else encode_ci8([rgba], 96, 32)   # (Lua takes either)
             indent = re.search(r'(?m)^([ \t]*)' + key + r'\s*=', text).group(1)
             nl = '\r\n' if '\r\n' in text else '\n'
             hexed = data.hex()
@@ -417,16 +436,32 @@ def set_card_picture(card, key, rgba):
                     + indent + '})')
             text = text[:start] + blob + text[end:]
             # the comment over it, if it says what the picture is: what it is now
-            text = re.sub(r'(?m)^([ \t]*)--[^\r\n]*(\r?\n[ \t]*' + key + r'\s*=)', lambda m: m.group(1) + (
-                "-- 32 x 32, still: RGB5A3 (GX's 4 x 4 tiles), as hex (from DolphinWorks)" if key == 'icon' else
-                "-- 96 x 32, CI8 in GX's 8 x 4 tiles, then its 256-colour RGB5A3 palette, as hex (from DolphinWorks)")
-                + m.group(2), text, count=1)
+            what = ("-- 96 x 32, CI8 in GX's 8 x 4 tiles, then its 256-colour RGB5A3 palette, as hex" if key == 'banner' else
+                    "-- 32 x 32, still: RGB5A3 (GX's 4 x 4 tiles), as hex" if n == 1 else
+                    f"-- 32 x 32, animated: {n} CI8 frames (GX's 8 x 4 tiles), then their shared RGB5A3 palette, as hex")
+            text = re.sub(r'(?m)^([ \t]*)--[^\r\n]*(\r?\n[ \t]*' + key + r'\s*=)',
+                          lambda m: m.group(1) + what + ' (from DolphinWorks)' + m.group(2), text, count=1)
             path.write_bytes(text.encode('utf-8'))
-        else:
-            data = _card_encode(key, place['size'], rgba)
-            with open(place['path'], 'r+b' if place['kind'] == 'disc' else 'wb') as f:
-                f.seek(place.get('offset', 0))
-                f.write(data)
+            continue
+        out = data
+        if place['kind'] == 'disc' and len(out) != place['size']:
+            # The disc's copy can't change size: what fits in its room. A still there (2048 bytes) gets the first
+            # frame; frames there get these frames, round again to fill them.
+            if key == 'icon' and place['size'] == 2048:
+                out = encode_rgb5a3(frames[0], 32, 32)
+                if n > 1:
+                    note = 'The disc has room for a still icon: it shows the first frame until the next build.'
+            elif key == 'icon':
+                room = _icon_frames(place['size'])
+                out = encode_ci8([frames[i % n] for i in range(room)], 32, 32)
+                if room != n:
+                    note = f"The disc's icon has {room} frames: these went in round again to fill them, until the next build."
+            else:
+                continue
+        with open(place['path'], 'r+b' if place['kind'] == 'disc' else 'wb') as f:
+            f.seek(place.get('offset', 0))
+            f.write(out)
+    return note
 
 
 def make_bnr(path, start_from=None, default=None):
