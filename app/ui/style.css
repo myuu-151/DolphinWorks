@@ -36,7 +36,7 @@ svg { fill: currentColor; }
 .top {
   display: flex; align-items: center; gap: 24px;
   padding: 10px 24px; height: 92px; flex: none;
-  background: linear-gradient(180deg, #11161d, #0f1319);
+  background: linear-gradient(180deg, #171d27, #0b0e13);   /* (as the panels: a high, dipping darker) */
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 17px; }
