@@ -283,6 +283,14 @@ def set_path(kind, folder=None):
     return True, str(folder)
 
 
+def disc_image(octp, name):
+    """The project's disc image: where Octave packages it (Packaged\\GameCube), or beside the project
+    (where some projects keep theirs); the newer if both. Not built yet: the Packaged path."""
+    packaged = octp.parent / 'Packaged' / 'GameCube' / f'{name}.iso'
+    found = [p for p in (packaged, octp.parent / f'{name}.iso') if p.exists()]
+    return max(found, key=lambda p: p.stat().st_mtime) if found else packaged
+
+
 def scan_projects():
     seen, projects = set(), []
     roots = project_roots()
@@ -305,7 +313,7 @@ def scan_projects():
         seen.add(key)
         root = repo_root(octp)
         name = project_name(octp)
-        iso = octp.parent / 'Packaged' / 'GameCube' / f'{name}.iso'
+        iso = disc_image(octp, name)
         banner, screenshot = find_art(root)
         builders = sorted(root.glob('Build *.bat'))
         projects.append({
@@ -429,7 +437,7 @@ def build(project, options):
     if not dkp:
         JOBS.emit('line', text='No GameCube toolchain: install gekko-toolchain or devkitPro.', level='error')
         return False
-    iso = Path(project['iso'])
+    iso = Path(project['octp']).parent / 'Packaged' / 'GameCube' / f'{project["name"]}.iso'   # where Octave writes it
     env = dict(os.environ)
     env['PATH'] = os.pathsep.join([str(dkp / 'devkitPPC' / 'bin'), str(dkp / 'tools' / 'bin'),
                                    str(dkp / 'msys2' / 'usr' / 'bin'), env.get('PATH', '')])
