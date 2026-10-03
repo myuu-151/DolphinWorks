@@ -69,6 +69,11 @@ Forks of the toolchain's components are maintained to keep their sources availab
 | Swiss | [myuu-151/swiss-gc-libogc](https://github.com/myuu-151/swiss-gc-libogc) |
 | Dolphin | [myuu-151/dolphin](https://github.com/myuu-151/dolphin), with its build on the release at the exact commit |
 
+## License
+
+DolphinWorks is released under the [MIT License](LICENSE). The components it installs keep their own
+licenses: see each one's repository.
+
 ---
 
 *DolphinWorks is not affiliated with Nintendo or devkitPro. GameCube is a trademark of Nintendo.*
