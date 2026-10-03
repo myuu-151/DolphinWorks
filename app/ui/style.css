@@ -137,6 +137,17 @@ li.CodeMirror-hint-active { background: #23395b; color: #fff; }
 .casset-kv input:not([type=checkbox]), .casset-kv select { width: min(320px, 100%); }
 .casset-kv input[type=number] { width: 110px; }
 .casset-kv code { font-family: Consolas, monospace; color: #a5d6a7; }
+.cfiles-head { align-items: center; gap: 8px; }
+.cfiles-head .muted { margin-left: auto; }
+.btn.small.icon { padding: 2px 8px; font-size: 14px; line-height: 1.2; }
+.crow.drop-into { background: #1d3354; box-shadow: inset 0 0 0 1px var(--blue2); }
+.crow[draggable="true"] { -webkit-user-drag: element; }
+.cmenu { position: absolute; display: none; min-width: 190px; padding: 5px; border: 1px solid var(--line2); border-radius: 8px;
+  background: #161c25; box-shadow: 0 10px 30px rgba(0, 0, 0, .55); z-index: 60; font-size: 13.5px; }
+.cmenu.show { display: block; }
+.cmenu-item { padding: 6px 12px; border-radius: 5px; cursor: pointer; }
+.cmenu-item:hover { background: #23395b; }
+.cmenu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 .cdrop { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(12, 24, 44, .78);
   border: 2px dashed var(--blue2); border-radius: 10px; font-size: 18px; z-index: 40; pointer-events: none; }
 .cdrop.show { display: flex; }

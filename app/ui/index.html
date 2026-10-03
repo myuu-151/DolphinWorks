@@ -74,11 +74,13 @@
           <button class="btn" id="cConvert" title="Turn new and changed files in Raw/ into assets">Convert</button>
           <button class="btn primary" data-act="build">Build</button></div></div>
       <div class="content-grid" id="contentGrid">
-        <div class="card cfiles"><div class="cfiles-head"><b>Files</b><span class="muted" id="cRootHint"></span></div>
+        <div class="card cfiles"><div class="cfiles-head"><b>Files</b><span class="muted" id="cRootHint"></span>
+          <button class="btn small icon" id="cRefresh" title="Refresh: the files again, and the open one from disk">⟳</button></div>
           <div id="cTree" class="ctree"></div>
           <p class="cdrop-hint">Drop pictures, sounds and models (GLB, OBJ, .blend) anywhere here: they go into Raw/</p></div>
         <div class="card cpane" id="cPane"><div class="empty">Choose a file.</div></div>
       </div>
+      <div class="cmenu" id="cMenu"></div>
       <div class="cdrop" id="cDrop"><div>Drop to add to <b id="cDropWhere">Raw/</b></div></div>
     </div>
 

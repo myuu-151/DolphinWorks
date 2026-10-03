@@ -559,6 +559,48 @@ def convert_assets(project, everything=False):
     return not result['failed']
 
 
+def raw_moved(project, old_rel, new_rel):
+    """A file (or folder) in Raw/ moved or renamed: its asset settings follow it (Raw/assets.json, by its path in
+    Raw/), and what was made of it is removed, to be made again where it now is (Assets/ mirrors Raw/)."""
+    folder = project_folder(project)
+    old_raw, new_raw = old_rel.split('/', 1)[1] if '/' in old_rel else '', new_rel.split('/', 1)[1] if '/' in new_rel else ''
+    under = lambda key, base: key == base or key.startswith(base + '/')
+    settings_file, made_file = folder / 'Raw' / 'assets.json', folder / 'Intermediate' / 'octkit.json'
+    try:
+        data = json.loads(settings_file.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        data = {}
+    assets = data.get('assets', {})
+    for key in [k for k in assets if under(k, old_raw)]:
+        assets[new_raw + key[len(old_raw):]] = assets.pop(key)
+    if assets:
+        settings_file.write_text(json.dumps(data, indent=1, sort_keys=True) + '\n', encoding='utf-8')
+    try:
+        made = json.loads(made_file.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        made = {}
+    for key in [k for k in made if under(k.split('#')[0], old_raw)]:
+        value = made.pop(key)
+        for path in ([value] if key.endswith('#path') else value if key.endswith('#paths') else []):
+            try:
+                Path(path).unlink()
+            except OSError:
+                pass
+    if made_file.exists():
+        made_file.write_text(json.dumps(made, indent=1, sort_keys=True), encoding='utf-8')
+
+
+def to_recycle_bin(path):
+    """A file or folder into Windows' Recycle Bin (not gone for good)."""
+    kind = 'DeleteDirectory' if Path(path).is_dir() else 'DeleteFile'
+    script = (f"Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::{kind}("
+              f"'{str(path)}', 'OnlyErrorDialogs', 'SendToRecycleBin')")
+    run = subprocess.run(['powershell', '-NoProfile', '-Command', script], capture_output=True, text=True, timeout=60,
+                         creationflags=NO_WINDOW)
+    if Path(path).exists():
+        raise ValueError(f'Not deleted: {run.stderr.strip()[:200] or "it may be in use"}')
+
+
 def update_asset_settings(project, source, settings):
     folder = project_folder(project)
     path = folder / 'Raw' / 'assets.json'
@@ -568,7 +610,8 @@ def update_asset_settings(project, source, settings):
         data = {}
     entry = data.setdefault('assets', {}).setdefault(source, {})
     allowed = {'name', 'filter', 'wrap', 'mipmaps', 'force_hq', 'downsample', 'mode', 'rate', 'volume', 'pitch',
-               'max_instances', 'quality'}
+               'max_instances', 'quality', 'scale', 'lit', 'cull', 'preset', 'width', 'height', 'fps', 'audio_channels',
+               'native_resolution', 'native_fps', 'native_audio'}
     for k, v in settings.items():
         if k in allowed:
             entry[k] = v
@@ -1578,13 +1621,57 @@ class Handler(BaseHTTPRequestHandler):
         if action == 'gecko_send':
             ok = GECKO.send(str(body.get('text', '')))
             return self.json({'ok': ok, 'message': None if ok else 'Not connected to the USB Gecko.', **GECKO.status()})
-        if action in ('save_file', 'add_files', 'asset_settings', 'new_script', 'new_folder') and project:
+        if action in ('save_file', 'add_files', 'asset_settings', 'new_script', 'new_folder', 'move_file', 'rename_file',
+                      'delete_file', 'reveal_file') and project:
             try:
+                if action in ('move_file', 'rename_file'):
+                    src = project_file(project, body.get('path', ''))
+                    if action == 'move_file':
+                        dest_dir = project_file(project, body.get('to', ''))
+                        if not dest_dir.is_dir():
+                            raise ValueError('Not a folder.')
+                        dest = dest_dir / src.name
+                    else:
+                        name = str(body.get('name', '')).strip()
+                        if not name or any(c in name for c in '\\/:*?"<>|') or name in ('.', '..'):
+                            raise ValueError('Not a name a file can have.')
+                        dest = src.with_name(name)
+                    folder = project_folder(project)
+                    if src == folder or dest == src:
+                        return self.json({'ok': True, 'path': src.relative_to(folder).as_posix()})
+                    if dest.exists():
+                        raise ValueError(f'{dest.name} is there already.')
+                    if src.is_dir() and (dest == src or src in dest.parents):
+                        raise ValueError('A folder can\'t go inside itself.')
+                    old_rel, new_rel = src.relative_to(folder).as_posix(), dest.relative_to(folder).as_posix()
+                    src.rename(dest)
+                    if old_rel.split('/')[0] == 'Raw' or new_rel.split('/')[0] == 'Raw':
+                        raw_moved(project, old_rel, new_rel)
+                    return self.json({'ok': True, 'path': new_rel})
+                if action == 'delete_file':
+                    target = project_file(project, body.get('path', ''))
+                    folder = project_folder(project)
+                    if target == folder or target.suffix.lower() == '.octp' and target.parent == folder:
+                        raise ValueError("That's the project itself.")
+                    rel = target.relative_to(folder).as_posix()
+                    if rel.split('/')[0] == 'Raw':
+                        raw_moved(project, rel, 'Raw/.deleted/' + rel)      # (its settings set aside, its assets gone)
+                    to_recycle_bin(target)
+                    return self.json({'ok': True})
+                if action == 'reveal_file':
+                    target = project_file(project, body.get('path', ''))
+                    launch(['explorer', '/select,', str(target)] if target.is_file() else ['explorer', str(target)])
+                    return self.json({'ok': True})
                 if action == 'save_file':
                     path = project_file(project, body.get('path', ''))
                     if path.suffix.lower() not in TEXT_FILES:
                         raise ValueError('Not a text file DolphinWorks edits.')
                     text = str(body.get('text', ''))
+                    base = body.get('base_time')
+                    if path.exists() and base and not body.get('force') and abs(path.stat().st_mtime - float(base)) > 0.001:
+                        # changed on disk since it was opened (another program, a script): the editor asks first
+                        return self.json({'ok': False, 'conflict': True, 'time': path.stat().st_mtime,
+                                          'message': f'{path.name} changed on disk since it was opened.'})
                     old = path.read_bytes().decode('utf-8', 'replace') if path.exists() else ''
                     if '\r\n' in old:                      # (its line endings kept)
                         text = text.replace('\r\n', '\n').replace('\n', '\r\n')
@@ -1608,12 +1695,15 @@ class Handler(BaseHTTPRequestHandler):
                     name = str(body.get('name', '')).strip()
                     if not re.match(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$', name):
                         raise ValueError('A script name is letters, digits and _ (it names its Lua class too).')
-                    path = project_file(project, f'Scripts/{name}.lua')
+                    where = str(body.get('folder') or 'Scripts').strip('/')
+                    if where.split('/')[0] != 'Scripts':
+                        where = 'Scripts'
+                    path = project_file(project, f'{where}/{name}.lua')
                     if path.exists():
                         raise ValueError(f'Scripts/{name}.lua is there already.')
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(SCRIPT_TEMPLATE.format(name=name), newline='\n')
-                    return self.json({'ok': True, 'path': f'Scripts/{name}.lua'})
+                    return self.json({'ok': True, 'path': path.relative_to(project_folder(project)).as_posix()})
                 if action == 'new_folder':
                     path = project_file(project, body.get('path', ''))
                     path.mkdir(parents=True, exist_ok=True)

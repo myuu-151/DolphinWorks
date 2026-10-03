@@ -687,7 +687,7 @@ function renderTree() {
     const pad = `style="padding-left:${8 + depth * 14}px"`;
     if (e.dir) {
       const open = C.folds[e.path] !== false;
-      return `<div class="crow dir${open ? ' open' : ''}" data-dir="${esc(e.path)}" ${pad}><span class="caret">${open ? '▾' : '▸'}</span>${esc(e.name)}</div>`
+      return `<div class="crow dir${open ? ' open' : ''}" data-dir="${esc(e.path)}" draggable="true" ${pad}><span class="caret">${open ? '▾' : '▸'}</span>${esc(e.name)}</div>`
         + (open ? e.children.map((c) => row(c, depth + 1)).join('') : '');
     }
     const a = assetOf(e.path), s = sourceOf(e.path);
@@ -697,7 +697,7 @@ function renderTree() {
       : VIDEO_EXT.includes(ext(e.path)) ? '▶' : ext(e.path) === '.ttf' ? 'Aa'
       : ext(e.path) === '.oct' ? '◆'
       : TEXT_EXT.includes(ext(e.path)) ? '‹›' : '·';
-    return `<div class="crow file${C.open === e.path ? ' sel' : ''}" data-file="${esc(e.path)}" ${pad}>
+    return `<div class="crow file${C.open === e.path ? ' sel' : ''}" data-file="${esc(e.path)}" draggable="true" ${pad}>
       <span class="cicon">${icon}</span><span class="cname">${esc(e.name)}</span>${badge}</div>`;
   };
   $('#cTree').innerHTML = C.data.tree.map((e) => row(e, 0)).join('') || '<div class="empty">No files.</div>';
@@ -732,6 +732,7 @@ async function openFile(path, quiet) {
   if (TEXT_EXT.includes(e)) {
     const r = await api(url);
     if (!r.ok) { pane.innerHTML = `<div class="empty">${esc(r.message)}</div>`; return; }
+    C.fileTime = r.time;
     pane.innerHTML = `<div class="ceditor-head"><b>${esc(path)}</b><span class="cdirty" id="cDirty"></span>
       <span class="spacer"></span><button class="btn small" id="cSave">Save</button>
       <button class="btn small" id="cCode" title="Open it in VS Code, else Visual Studio (with Octave's headers and API set up)">Open in IDE</button>
@@ -795,7 +796,17 @@ function renderAssetPane(path, a, url) {
     : a.kind === 'mesh' ? `<div class="cparts">${(a.outputs || []).length ? (a.outputs || []).map((o) => `<span class="cpart ${o.slice(0, 2)}">${esc(o)}</span>`).join('')
                                                                               : '<span class="muted">Not converted yet.</span>'}</div>`
     : `<div class="cpreview audio"><audio controls src="${url}&raw=1"></audio></div>`;
-  const settings = a.kind === 'video' || a.kind === 'font' ? ''
+  const settings = a.kind === 'font' ? ''
+    : a.kind === 'video' ? `
+      <dt>Preset</dt><dd>${sel('preset', [['custom', 'Custom (the size and rate below)'], ['ntsc', 'NTSC: 640 × 480, 29.97 fps'], ['pal', 'PAL: 640 × 528, 25 fps']])}</dd>
+      ${s.preset === 'custom' ? `
+      <dt>Width</dt><dd>${num('width', 16, 16, 1024)} <span class="muted">pixels, a multiple of 16</span></dd>
+      <dt>Height</dt><dd>${num('height', 16, 0, 1024)} <span class="muted">0: keep its shape</span></dd>
+      <dt>Frame rate</dt><dd>${num('fps', 1, 1, 60)} <span class="muted">fps</span></dd>` : ''}
+      <dt>Quality</dt><dd>${num('quality', 1, 2, 31)} <span class="muted">JPEG: 2 best … 31 smallest</span></dd>
+      <dt>Audio</dt><dd>${sel('audio_channels', [[2, 'Stereo'], [1, 'Mono']])}</dd>
+      <dt>Keep the source's</dt><dd><label class="check">${chk('native_resolution')} size</label>
+        <label class="check">${chk('native_fps')} frame rate</label> <label class="check">${chk('native_audio')} audio rate</label></dd>`
     : a.kind === 'mesh' ? `
       <dt>Scale</dt><dd>${num('scale', 0.1, 0.001, 1000)}</dd>
       <dt>Lighting</dt><dd><label class="check">${chk('lit')} lit by the scene's lights</label></dd>
@@ -827,7 +838,7 @@ function renderAssetPane(path, a, url) {
       ${settings}
       <dt>Size</dt><dd>${kb(a.source_size)} here${a.size ? ` · ${kb(a.size)} as an asset (before the console cook)` : ''}</dd>
     </dl>
-    <p class="note">${a.kind === 'video' ? 'Cooked by Octave itself when it converts (its own importer, run headless): JPEG frames and the audio, played from the disc. Paste the lines above into the Create of a script (Game.lua, say), then Build.'
+    <p class="note">${a.kind === 'video' ? 'Cooked by Octave itself when it converts (its own importer, run headless, with these settings): JPEG frames and the audio, played from the disc. Smaller, slower and lower quality all cost less disc and less work for the console. Paste the lines above into the Create of a script (Game.lua, say), then Build.'
       : a.kind === 'font' ? 'Imported by Octave itself when it converts (its own importer, run headless).'
       : a.kind === 'mesh' ? `A mesh for each of its materials (SM_…), each material (M_…), and a texture for each picture in it (T_…), its scene baked flat. ${ext(path) === '.blend' ? 'Read by Blender itself (Packages), exported as glTF.' : ''}`
       : a.kind === 'texture' ? 'The GameCube format is chosen when it builds, from the picture\'s transparency: none, cut-out, or smooth.'
@@ -836,7 +847,7 @@ function renderAssetPane(path, a, url) {
   pane.querySelectorAll('[data-set]').forEach((el) => el.onchange = async () => {
     const key = el.dataset.set;
     let value = el.type === 'checkbox' ? el.checked : el.value;
-    if (['downsample', 'rate', 'max_instances', 'quality'].includes(key)) value = parseInt(value, 10);
+    if (['downsample', 'rate', 'max_instances', 'quality', 'width', 'height', 'fps', 'audio_channels'].includes(key)) value = parseInt(value, 10);
     if (['volume', 'pitch', 'scale'].includes(key)) value = parseFloat(value);
     const r = await api('/api/asset_settings', { id: project().id, source: a.source, settings: { [key]: value } });
     if (!r.ok) return toast(r.message);
@@ -846,10 +857,21 @@ function renderAssetPane(path, a, url) {
   $('#cConvertOne').onclick = () => $('#cConvert').click();
 }
 
-async function saveFile() {
+async function saveFile(force) {
   if (!C.editor || !C.open) return false;
-  const r = await api('/api/save_file', { id: project().id, path: C.open, text: C.editor.getValue() });
+  let r = await api('/api/save_file', { id: project().id, path: C.open, text: C.editor.getValue(), base_time: C.fileTime, force: !!force });
+  if (r.conflict) {
+    // changed on disk since it opened (another program, a script, Claude): yours over it, or its back here
+    if (confirm(`${C.open} changed on disk since you opened it here.\n\nOK: save yours over it.\nCancel: load the one on disk instead (your changes here are dropped).`)) {
+      return saveFile(true);
+    }
+    C.dirty = false;
+    await openFile(C.open, true);
+    toast(`Loaded ${C.open.split('/').pop()} from disk`);
+    return false;
+  }
   if (!r.ok) { toast(r.message || 'Not saved.'); return false; }
+  C.fileTime = r.time;
   C.dirty = false;
   const d = $('#cDirty');
   if (d) d.textContent = '';
@@ -927,7 +949,141 @@ function rawFolderOf(path) {
   return parts.join('/');
 }
 
+// Refresh: the files again, and the open file from disk (unless it has unsaved changes here).
+async function refreshContent(quietly) {
+  if (C.open && C.editor && !C.dirty) {
+    const r = await api(`/api/file?id=${encodeURIComponent(project().id)}&path=${encodeURIComponent(C.open)}`);
+    if (r.ok && r.time !== C.fileTime) {
+      const cur = C.editor.getCursor(), top = C.editor.getScrollInfo().top;
+      C.editor.setValue(r.text);
+      C.editor.setCursor(cur);
+      C.editor.scrollTo(0, top);
+      C.dirty = false;
+      C.fileTime = r.time;
+      const d = $('#cDirty');
+      if (d) d.textContent = '';
+      toast(`${C.open.split('/').pop()} changed on disk: reloaded`);
+    }
+  }
+  const keep = C.editor ? C.open : null;
+  await loadContent(!keep);
+  if (!quietly && !keep) toast('Refreshed');
+}
+
+async function moveFile(from, toDir) {
+  const p = project();
+  const r = await api('/api/move_file', { id: p.id, path: from, to: toDir });
+  if (!r.ok) return toast(r.message);
+  if (C.open === from) C.open = r.path;
+  else if (C.open && C.open.startsWith(from + '/')) C.open = r.path + C.open.slice(from.length);
+  C.folds[toDir] = true;
+  toast(`Moved to ${toDir || 'the project'}/`);
+  await loadContent();
+}
+
+function contentMenu(x, y, target) {
+  // target: { path, dir } of the row right-clicked, or null (the panel itself: the project's folder)
+  const p = project();
+  if (!p || !p.octp) return;
+  const dir = target ? (target.dir ? target.path : target.path.split('/').slice(0, -1).join('/')) : '';
+  const items = [
+    ['New folder…', async () => {
+      const name = prompt(`A new folder in ${dir || 'the project'}/:`, 'New folder');
+      if (!name) return;
+      const r = await api('/api/new_folder', { id: p.id, path: (dir ? dir + '/' : '') + name.trim() });
+      if (!r.ok) return toast(r.message);
+      C.folds[dir] = true;
+      await loadContent();
+    }],
+    ['New script…', async () => {
+      const name = prompt('A new Lua script (a node script: Create and Tick). Its name:', 'Player');
+      if (!name) return;
+      const r = await api('/api/new_script', { id: p.id, name: name.trim(), folder: dir.startsWith('Scripts') ? dir : 'Scripts' });
+      if (!r.ok) return toast(r.message);
+      C.folds['Scripts'] = true;
+      await loadContent();
+      openFile(r.path);
+    }],
+    ['Add files here…', () => { C.dropFolder = rawFolderOf(dir.startsWith('Raw') ? dir + '/' : 'Raw/'); $('#cAddFiles').click(); }],
+  ];
+  if (target) {
+    items.push(null, ['Rename…', async () => {
+      const old = target.path.split('/').pop();
+      const name = prompt('New name:', old);
+      if (!name || name === old) return;
+      const r = await api('/api/rename_file', { id: p.id, path: target.path, name: name.trim() });
+      if (!r.ok) return toast(r.message);
+      if (C.open === target.path) C.open = r.path;
+      await loadContent();
+    }], ['Delete…', async () => {
+      if (C.open === target.path && C.dirty && !confirm('It has unsaved changes here. Delete anyway?')) return;
+      if (!confirm(`Delete ${target.path}${target.dir ? ' and everything in it' : ''}? It goes to the Recycle Bin.`)) return;
+      const r = await api('/api/delete_file', { id: p.id, path: target.path });
+      if (!r.ok) return toast(r.message);
+      if (C.open && (C.open === target.path || C.open.startsWith(target.path + '/'))) { C.open = null; C.editor = null; C.dirty = false; }
+      await loadContent();
+      toast('Deleted (in the Recycle Bin)');
+    }]);
+  }
+  items.push(null, ['Show in Explorer', () => api('/api/reveal_file', { id: p.id, path: target ? target.path : '' })],
+             ['Refresh', () => refreshContent()]);
+  const menu = $('#cMenu');
+  menu.innerHTML = items.map((it, i) => it ? `<div class="cmenu-item" data-i="${i}">${esc(it[0])}</div>` : '<div class="cmenu-sep"></div>').join('');
+  menu.querySelectorAll('[data-i]').forEach((el) => el.onclick = () => { menu.classList.remove('show'); items[+el.dataset.i][1](); });
+  const page = $('#page-content').getBoundingClientRect();
+  menu.style.left = `${x - page.left}px`;
+  menu.style.top = `${y - page.top}px`;
+  menu.classList.add('show');
+  const r = menu.getBoundingClientRect();                       // (kept on the page)
+  if (r.right > window.innerWidth - 8) menu.style.left = `${x - page.left - r.width}px`;
+  if (r.bottom > window.innerHeight - 8) menu.style.top = `${y - page.top - r.height}px`;
+}
+
 function bindContent() {
+  $('#cRefresh').onclick = () => refreshContent();
+  // right-click: the row's menu, or the panel's
+  $('.cfiles').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const row = e.target.closest('[data-dir], [data-file]');
+    contentMenu(e.clientX, e.clientY, row ? { path: row.dataset.dir || row.dataset.file, dir: !!row.dataset.dir } : null);
+  });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#cMenu')) $('#cMenu').classList.remove('show'); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#cMenu').classList.remove('show'); });
+  // drag a row onto a folder (or the panel: the project's folder) to move it there
+  const tree = $('#cTree');
+  tree.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('[data-dir], [data-file]');
+    if (!row) return;
+    C.dragging = row.dataset.dir || row.dataset.file;
+    e.dataTransfer.setData('text/x-dw-path', C.dragging);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  tree.addEventListener('dragend', () => { C.dragging = null; $$('.crow.drop-into').forEach((r) => r.classList.remove('drop-into')); });
+  tree.addEventListener('dragover', (e) => {
+    if (!C.dragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+    $$('.crow.drop-into').forEach((r) => r.classList.remove('drop-into'));
+    const row = e.target.closest('[data-dir], [data-file]');
+    const dir = row ? (row.dataset.dir || row.dataset.file.split('/').slice(0, -1).join('/')) : '';
+    const dirRow = dir && tree.querySelector(`[data-dir="${CSS.escape(dir)}"]`);
+    if (dirRow) dirRow.classList.add('drop-into');
+  });
+  tree.addEventListener('drop', (e) => {
+    if (!C.dragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+    $$('.crow.drop-into').forEach((r) => r.classList.remove('drop-into'));
+    const row = e.target.closest('[data-dir], [data-file]');
+    const dir = row ? (row.dataset.dir || row.dataset.file.split('/').slice(0, -1).join('/')) : '';
+    const from = C.dragging;
+    C.dragging = null;
+    if (dir === from || dir.startsWith(from + '/') || from.split('/').slice(0, -1).join('/') === dir) return;
+    moveFile(from, dir);
+  });
+  // a file changed on disk (another program, a script): the open one reloads by itself, if not edited here
+  window.addEventListener('focus', () => { if ($('#page-content').classList.contains('active') && C.open) refreshContent(true); });
+
   $('#cTree').addEventListener('click', (e) => {
     const d = e.target.closest('[data-dir]'), f = e.target.closest('[data-file]');
     if (d) { C.folds[d.dataset.dir] = !(C.folds[d.dataset.dir] !== false); C.dropFolder = rawFolderOf(d.dataset.dir + '/'); renderTree(); }
@@ -958,7 +1114,7 @@ function bindContent() {
   // drop anywhere on the page
   const page = $('#page-content'), drop = $('#cDrop');
   let depth = 0;
-  page.addEventListener('dragenter', (e) => { if (e.dataTransfer.types.includes('Files')) { depth++; $('#cDropWhere').textContent = 'Raw/' + (C.dropFolder ? C.dropFolder + '/' : ''); drop.classList.add('show'); } });
+  page.addEventListener('dragenter', (e) => { if (!C.dragging && e.dataTransfer.types.includes('Files')) { depth++; $('#cDropWhere').textContent = 'Raw/' + (C.dropFolder ? C.dropFolder + '/' : ''); drop.classList.add('show'); } });
   page.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.classList.remove('show'); } });
   page.addEventListener('dragover', (e) => e.preventDefault());
   page.addEventListener('drop', (e) => { e.preventDefault(); depth = 0; drop.classList.remove('show'); addFiles([...e.dataTransfer.files], C.dropFolder); });
