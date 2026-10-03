@@ -35,6 +35,7 @@ DW_ROOT = Path(r'C:\DolphinWorks')                 # where dolphinworks.bat inst
 NO_WINDOW, LOW_PRIORITY = 0x08000000, 0x4000
 VERSION = '0.1 (prototype)'
 SKIP_FOLDERS = re.compile(r'(-main|-master|_public|_decomp| - Copy|Packaged|Template|Intermediate|\\build\\)', re.I)
+BUILD_OUTPUT = re.compile(r'\\(Packaged|Intermediate)\\', re.I)   # a build's copy of the project: never listed
 
 
 # --- state ----------------------------------------------------------------------------------------
@@ -287,14 +288,19 @@ def scan_projects():
     seen, projects = set(), []
     roots = project_roots()
     extra = [Path(p) for p in load_state().get('projects', [])]
-    candidates = list(extra)
+    candidates = [(p, None) for p in extra]
     for base in roots:
         if not base.is_dir():
             continue
         for depth in ('*.octp', '*/*.octp', '*/*/*.octp', '*/*/*/*.octp'):
-            candidates.extend(base.glob(depth))
-    for octp in candidates:
-        if not octp.exists() or SKIP_FOLDERS.search(str(octp)) and octp not in extra:
+            candidates.extend((p, base) for p in base.glob(depth))
+    for octp, base in candidates:
+        if not octp.exists():
+            continue
+        # copies (clones, downloads, build output) are skipped below the folder searched, never the
+        # folder itself: a folder added in Settings is searched even if it's "CCGC-main"
+        if base is not None and (SKIP_FOLDERS.search('\\' + str(octp.relative_to(base).parent) + '\\')
+                                 or BUILD_OUTPUT.search(str(octp))):
             continue
         key = str(octp.resolve()).lower()
         if key in seen:
