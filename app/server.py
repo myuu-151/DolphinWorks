@@ -112,8 +112,9 @@ def dolphin_version(folder):
     except OSError:
         try:
             data = (folder / 'Dolphin.exe').read_bytes()
-            # the version string: "2609-1" (a development build), else "2609" (a release)
-            m = re.search(rb'\x00(2[0-9]{3}-[0-9]+)\x00', data) or re.search(rb'\x00(2[0-9]{3})\x00[0-9a-f]{40}\x00', data)
+            # its user agent, "Dolphin/2609" or "Dolphin/2609-1"; else the bare version string
+            m = (re.search(rb'Dolphin/(2[0-9]{3}(?:-[0-9]+)?)\x00', data) or re.search(rb'\x00(2[0-9]{3}-[0-9]+)\x00', data)
+                 or re.search(rb'\x00(2[0-9]{3})\x00[0-9a-f]{40}\x00', data))
             return m.group(1).decode() if m else 'installed'
         except OSError:
             return 'installed'
