@@ -175,7 +175,8 @@ function renderStatus() {
   $('#statusText').textContent = state.busy ? state.busy + '...' : 'Ready';
   $('#statusProject').textContent = p ? '› ' + p.title : '';
   const t = state.toolchains.find((x) => x.path === state.toolchain);
-  $('#statusInfo').textContent = `DolphinWorks ${state.version}  |  ${t ? t.label : 'no toolchain'}  |  Octave engine`
+  $('#statusInfo').textContent = `DolphinWorks ${state.version}  |  ${t ? t.label : 'no toolchain'}`
+    + `  |  ${state.octave ? 'Octave ' + (state.octave_version || '') : 'no Octave'}`
     + `  |  ${state.dolphin ? 'Dolphin ' + state.dolphin.version : 'no Dolphin'}`;
 }
 

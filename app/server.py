@@ -89,6 +89,28 @@ def find_toolchains():
     return found
 
 
+def octave_version(folder):
+    """The engine's release: as setup installed it, else its git tag ("v2.2", or "v2.2+3" three commits on)."""
+    try:
+        key = ('octave', str(folder).lower(), (folder / 'Octave.exe').stat().st_mtime)
+    except OSError:
+        return None
+    if key not in VERSIONS:
+        version = None
+        try:
+            version = (folder / '.dolphinworks-release').read_text().strip()
+        except OSError:
+            try:
+                out = subprocess.run(['git', '-C', str(folder), 'describe', '--tags', '--match', 'v*'], capture_output=True,
+                                     text=True, timeout=10, creationflags=NO_WINDOW).stdout.strip()
+                m = re.match(r'(v[0-9.]+)(?:-([0-9]+)-g[0-9a-f]+)?$', out)
+                version = m and m.group(1) + (f'+{m.group(2)}' if m.group(2) else '')
+            except (OSError, subprocess.SubprocessError):
+                pass
+        VERSIONS[key] = version
+    return VERSIONS[key]
+
+
 def find_octave():
     for path in (load_state().get('octave'), DW_ROOT / 'Octave-libogc', DOCUMENTS / 'octave-libogc'):
         if path and (Path(path) / 'Octave.exe').exists():
@@ -115,7 +137,7 @@ def find_dolphin():
     return found[0], (found[0] / 'User-Accurate').is_dir()
 
 
-VERSIONS = {}                                      # (Dolphin.exe, its time) -> its version
+VERSIONS = {}                                      # (the exe, its time) -> its version: read once
 
 
 def dolphin_version(folder):
@@ -481,6 +503,7 @@ def state_payload():
         'toolchains': [{'path': str(p), 'label': toolchain_label(p)} for p in toolchains],
         'toolchain': str(chosen) if chosen else None,
         'octave': str(octave) if octave else None,
+        'octave_version': octave_version(octave) if octave else None,
         'dolphin': {'path': str(dolphin), 'version': dolphin_version(dolphin), 'profiles': profiles} if dolphin else None,
         'dolphins': [{'path': str(p), 'version': dolphin_version(p), 'where': p.parent.name,
                       'profiles': (p / 'User-Accurate').is_dir()} for p in find_dolphins()],
