@@ -29,4 +29,5 @@ if "%ELF%"=="" set ELF=gdbtest.elf
 echo GDB on %PORT%, debugging %ELF%. Try:  continue  /  break count_frame  /  bt  /  print hp  /  next
 echo (press A on the controller to crash on purpose; B breaks into GDB)
 echo.
-"%GDB%" -q -ex "directory %~dp0source" -ex "set remotetimeout 10" -ex "target remote \\.\%PORT%" "%ELF%"
+rem (the source folder by a relative path: GDB eats the backslashes of a full Windows one)
+"%GDB%" -q -ex "directory source" -ex "set remotetimeout 10" -ex "target remote \\.\%PORT%" "%ELF%"

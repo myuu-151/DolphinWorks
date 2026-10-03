@@ -533,7 +533,8 @@ def start_gdb(project):
     if not gdb:
         return {'ok': False, 'message': 'No powerpc-eabi-gdb: install gekko-toolchain or devkitPro.'}
     GECKO.disconnect(f'Disconnected: GDB has {port} now')
-    subprocess.Popen([str(gdb), '-q', '-ex', f'directory {elf.parent / "source"}', '-ex', 'set remotetimeout 10',
+    subprocess.Popen([str(gdb), '-q', '-ex', f'directory {(elf.parent / "source").as_posix()}',   # (forward slashes: GDB eats backslashes)
+                      '-ex', 'set remotetimeout 10',
                       '-ex', rf'target remote \\.\{port}', str(elf)], cwd=elf.parent,
                      creationflags=0x00000010)                    # CREATE_NEW_CONSOLE: its own window
     JOBS.emit('line', text=f'GDB on {port}: {elf.name}', level='info')
