@@ -674,7 +674,7 @@ async function loadContent(keepOpen = true) {
     $('#cPane').innerHTML = '';
     return;
   }
-  if (C.project !== p.id) C.mode = p.octp ? 'project' : 'disc';      // (another game: its project first)
+  if (C.project !== p.id) C.mode = p.octp ? (new URLSearchParams(location.search).get('mode') || 'project') : 'disc';   // (another game: its project first; ?mode=disc)
   if (!p.octp) C.mode = 'disc';                // (a disc image alone: its disc is all there is)
   $$('#cMode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === (C.mode || 'project')));
   if (C.mode === 'disc') return loadDisc(p);

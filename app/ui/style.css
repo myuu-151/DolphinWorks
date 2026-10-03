@@ -138,7 +138,10 @@ li.CodeMirror-hint-active { background: #23395b; color: #fff; }
 .casset-kv input[type=number] { width: 110px; }
 .casset-kv code { font-family: Consolas, monospace; color: #a5d6a7; }
 .cfiles-head { align-items: center; gap: 8px; }
-.cfiles-head .muted { margin-left: auto; }
+.cfiles-head .spacer { flex: 1; }
+.cmode { flex: none; }
+.cfiles-sub { padding: 0 8px 6px; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfiles-sub:empty { display: none; }
 .btn.small.icon { padding: 2px 8px; font-size: 14px; line-height: 1.2; }
 .cmode { display: inline-flex; border: 1px solid var(--line2); border-radius: 7px; overflow: hidden; }
 .cmode button { padding: 3px 11px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
