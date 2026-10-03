@@ -140,7 +140,8 @@ svg { fill: currentColor; }
 .right { margin: 14px 14px 10px 0; padding: 14px 16px; overflow-y: auto; }
 .right h3 { margin: 6px 0 12px; font-size: 16px; font-weight: 600; }
 .right h3:not(:first-child) { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
-.field { display: grid; grid-template-columns: 86px 1fr auto; align-items: center; gap: 8px; margin-bottom: 9px; }
+.field { display: grid; grid-template-columns: 86px 1fr; align-items: center; gap: 8px; margin-bottom: 9px; }
+.field:has(> :nth-child(3)) { grid-template-columns: 86px 1fr auto; }
 .field label { color: var(--muted); font-size: 13.5px; }
 .field .value { font-size: 13.5px; }
 select { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line2); background: #0f141c; }
