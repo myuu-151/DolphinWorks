@@ -39,12 +39,11 @@ svg { fill: currentColor; }
   background: linear-gradient(180deg, #131a28, #0d1118);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 17px; }
+.brand { display: flex; align-items: center; gap: 14px; }
 .logo { width: 84px; height: 84px; }
-/* the README banner's proportions, scaled to the 84 px icon */
-.brand-name { font-size: 41px; font-weight: 600; letter-spacing: .4px; line-height: 1.02;
+.brand-name { font-size: 34px; font-weight: 600; letter-spacing: .5px; line-height: 1.05;
   background: linear-gradient(180deg, #b9dcff, #5aa2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.brand-sub { font-size: 10.7px; letter-spacing: 4.3px; color: #c9d6ee; margin-top: 5px; padding-left: 2px; }
+.brand-sub { font-size: 13px; letter-spacing: 3.5px; color: #c9d6ee; margin-top: 4px; }
 .flow { margin-left: auto; display: flex; gap: 18px; align-items: center; color: var(--muted); font-size: 12px; letter-spacing: 3px; }
 .flow i { font-style: normal; color: var(--dim); }
 .top-status { display: flex; gap: 8px; margin-left: auto; }
