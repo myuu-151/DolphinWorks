@@ -692,7 +692,7 @@ def find_edge():
 
 
 def brand_window(proc):
-    """The app's own icon (app.ico, the dolphin leaping out of a D with a wave) on its window and taskbar
+    """The app's own icon (app.ico, the dolphin leaping from a wave in a D) on its window and taskbar
     button, in place of the badge Edge draws for app windows: the window is found by its title,
     its icons set (sized for its screen's scaling), and set again if Edge puts its own back."""
     user32 = ctypes.windll.user32
