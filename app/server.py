@@ -327,6 +327,7 @@ def scan_disc_images(roots, projects):
                     'last_build': time.strftime('%Y-%m-%d %H:%M', time.localtime(stat.st_mtime)),
                     'size_mb': round(stat.st_size / 2**20, 1), 'banner': None, 'screenshot': None,
                     'builder': None, 'engine': 'Disc image', 'modified': stat.st_mtime,
+                    'elf': str(iso.with_suffix('.elf')) if iso.with_suffix('.elf').exists() else None,
                 })
     return found
 
@@ -363,6 +364,7 @@ def scan_projects():
             'size_mb': round(iso.stat().st_size / 2**20, 1) if iso.exists() else None,
             'banner': str(banner) if banner else None, 'screenshot': str(screenshot) if screenshot else None,
             'builder': str(builders[0]) if builders else None,
+            'elf': str(elf) if (elf := octp.parent / 'Build' / 'GCN' / f'{name}.elf').exists() else None,   # (for GDB)
             'engine': 'Octave Engine' + (' + custom code' if (octp.parent / 'Source').is_dir() else ''),
             'modified': max(octp.stat().st_mtime, iso.stat().st_mtime if iso.exists() else 0),
         })
@@ -509,6 +511,33 @@ class GeckoConsole:
 
 
 GECKO = GeckoConsole()
+
+
+def find_gdb():
+    """powerpc-eabi-gdb: the chosen toolchain's, else any installed."""
+    for base in [chosen_toolchain(), *find_toolchains()]:
+        if base and (base / 'devkitPPC' / 'bin' / 'powerpc-eabi-gdb.exe').exists():
+            return base / 'devkitPPC' / 'bin' / 'powerpc-eabi-gdb.exe'
+    return None
+
+
+def start_gdb(project):
+    """GDB in a window of its own, on the project's .elf, connected to the USB Gecko (the console lets go of
+    the port first: one program at a time can have it). The game must be running, built with the debug stub."""
+    port, gdb = usb_gecko(), find_gdb()
+    elf = Path(project['elf']) if project.get('elf') else None
+    if not elf:
+        return {'ok': False, 'message': 'No .elf for this project: build it first (GDB needs its symbols).'}
+    if not port:
+        return {'ok': False, 'message': 'No USB Gecko plugged in.'}
+    if not gdb:
+        return {'ok': False, 'message': 'No powerpc-eabi-gdb: install gekko-toolchain or devkitPro.'}
+    GECKO.disconnect(f'Disconnected: GDB has {port} now')
+    subprocess.Popen([str(gdb), '-q', '-ex', f'directory {elf.parent / "source"}', '-ex', 'set remotetimeout 10',
+                      '-ex', rf'target remote \\.\{port}', str(elf)], cwd=elf.parent,
+                     creationflags=0x00000010)                    # CREATE_NEW_CONSOLE: its own window
+    JOBS.emit('line', text=f'GDB on {port}: {elf.name}', level='info')
+    return {'ok': True, 'message': f'GDB started on {port}', **GECKO.status()}
 SOURCE_LINE = re.compile(r'^\s*[\w.+-]+\.(?:cpp|c)$')
 
 
@@ -851,6 +880,8 @@ class Handler(BaseHTTPRequestHandler):
             save_state(**{k: v for k, v in body.items() if k in
                           ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'sd_card', 'selected')})
             return self.json({'ok': True})
+        if action == 'gdb' and project:
+            return self.json(start_gdb(project))
         if action == 'gecko_connect':
             ok, message = GECKO.connect()
             return self.json({'ok': ok, 'message': message, **GECKO.status()})

@@ -243,6 +243,7 @@ a.fix { color: #8fb5ff; }
 .console-send input:disabled { opacity: .5; }
 .gdb-card { overflow-y: auto; min-height: 0; }
 .gdb-card code { font-family: Consolas, monospace; color: #bfe0c8; }
+.gdb-card .gdb-for { margin: 6px 0 14px; font-size: 12.5px; overflow-wrap: anywhere; }
 .log .error { color: var(--err); }
 .log .warning { color: var(--warn); }
 .log .success { color: var(--ok); font-weight: 600; }

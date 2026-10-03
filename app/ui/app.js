@@ -241,6 +241,12 @@ function geckoStatus(s) {
   $('#gcConnect').disabled = !gecko.connected && !(state && state.gecko);
   $('#gcInput').disabled = !gecko.connected;
   if (state && state.gecko) $('#gdbHow').textContent = `powerpc-eabi-gdb.exe game.elf\n(gdb) target remote \\\\.\\${state.gecko}`;
+  // Start GDB: for the selected project's .elf, with a Gecko plugged in
+  const p = state && project();
+  $('#startGdb').disabled = !(p && p.elf && state.gecko);
+  $('#gdbFor').textContent = !p ? 'Choose a project first.'
+    : !p.elf ? `${p.title}: no .elf yet (build it; GDB needs its symbols).`
+    : !state.gecko ? 'Plug in the USB Gecko.' : `For ${p.title}: ${p.elf.split(/[\\/]/).pop()}`;
 }
 
 // opening the Debug page connects, if a Gecko is plugged in and it wasn't disconnected by hand
@@ -266,6 +272,13 @@ function bindGecko() {
     geckoStatus(r);
   };
   $('#gcClear').onclick = () => { $('#gcLog').innerHTML = ''; };
+  $('#startGdb').onclick = async () => {
+    const p = project();
+    const r = await api('/api/gdb', { id: p && p.id });
+    geckoLeftOff = true;                             // (GDB has the port: no reconnecting by itself)
+    geckoStatus(r);
+    toast(r.message || (r.ok ? 'GDB started' : 'That did not work.'));
+  };
   $('#gcSave').onclick = () => {
     const text = $$('#gcLog .l').map((l) => l.textContent).join('\r\n') + '\r\n';
     const a = document.createElement('a');

@@ -6,3 +6,8 @@ app/.window/
 app/launcher/*.obj
 app/launcher/*.res
 app/launcher/packages/
+tests/*/build/
+tests/*/*.dol
+tests/*/*.elf
+tests/*/*.elf.map
+tests/*/*.iso

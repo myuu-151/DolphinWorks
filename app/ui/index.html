@@ -115,11 +115,14 @@
           </form>
         </div>
         <div class="card gdb-card"><h2>GDB</h2>
-          <p class="muted">Build with libogc's debug stub (<code>DEBUG_Init</code>), then connect the console's port:</p>
+          <p class="muted">Pause the game on the console, set breakpoints, step through code, catch crashes. The game
+            must be running and built with libogc's debug stub (<code>DEBUG_Init</code>).</p>
+          <button class="btn primary wide" id="startGdb">▶ Start GDB</button>
+          <p class="muted gdb-for" id="gdbFor"></p>
+          <p class="muted">It opens in its own window, connected to the Gecko (the console lets go of the port).
+            By hand:</p>
           <pre class="code" id="gdbHow">powerpc-eabi-gdb.exe game.elf
 (gdb) target remote \\.\COM3</pre>
-          <p class="muted">Disconnect the console first: one program at a time can use the port.</p>
-          <p class="muted soon">Coming next: one-click GDB here.</p>
           <div id="geckoBig"></div>
           <p class="muted">The USB Gecko goes in memory card slot A. In Dolphin, DolphinWorks' profiles emulate one in slot B.</p></div>
       </div>
