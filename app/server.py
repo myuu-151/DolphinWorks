@@ -570,9 +570,28 @@ def vulkan_sdk():
 
 
 def ftdi_driver():
-    """The FTDI serial driver (the USB Gecko's): its file, or None."""
-    sys_file = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'drivers' / 'ftdibus.sys'
-    return str(sys_file) if sys_file.exists() else None
+    """The FTDI serial driver (the USB Gecko's): (installed, what's there). It has two halves, the bus (ftdibus)
+    and the COM port (ftdiport); installed, each sits in Windows' driver store (copied into System32\\drivers
+    only once the Gecko is first plugged in)."""
+    store = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'DriverStore' / 'FileRepository'
+    found = {}
+    for half in ('ftdibus', 'ftdiport'):
+        for folder in sorted(store.glob(f'{half}.inf_*')):
+            if not folder.is_dir():
+                continue
+            try:
+                raw = (folder / f'{half}.inf').read_bytes()
+                text = raw.decode('utf-16') if raw[:2] in (b'\xff\xfe', b'\xfe\xff') else raw.decode('latin-1')
+                ver = re.search(r'DriverVer\s*=\s*[^,]*,\s*([0-9.]+)', text)
+                found[half] = ver.group(1) if ver else 'installed'
+            except OSError:
+                found[half] = 'installed'
+    if not found:
+        return False, ''
+    if len(found) == 1:
+        missing = 'ftdiport' if 'ftdibus' in found else 'ftdibus'
+        return False, f'{next(iter(found))} {next(iter(found.values()))} only: install {missing}.inf too'
+    return True, f"{found['ftdibus']} (bus and COM port)"
 
 
 PACKAGES_CACHE = {}
@@ -581,7 +600,7 @@ PACKAGES_CACHE = {}
 def other_packages():
     """Python and the rest, checked once a minute at most (Visual Studio's check takes a moment)."""
     if time.time() - PACKAGES_CACHE.get('at', 0) > 60:
-        vs, vk = visual_studio(), vulkan_sdk()
+        vs, vk, ftdi = visual_studio(), vulkan_sdk(), ftdi_driver()
         pil, np = python_package('pillow'), python_package('numpy')
         PACKAGES_CACHE.update(at=time.time(), list=[
             {'name': 'Python 3', 'group': 'required', 'ok': True, 'where': f'{sys.version.split()[0]}: {Path(sys.executable).parent}',
@@ -594,7 +613,7 @@ def other_packages():
              'purpose': 'Building the engine from source', 'link': 'https://visualstudio.microsoft.com/'},
             {'name': 'Vulkan SDK', 'group': 'optional', 'ok': bool(vk), 'where': ': '.join(vk) if vk else '',
              'purpose': 'Building the engine from source', 'link': 'https://vulkan.lunarg.com/sdk/home#windows'},
-            {'name': 'USB Gecko driver (FTDI)', 'group': 'optional', 'ok': bool(ftdi_driver()), 'where': ftdi_driver() or '',
+            {'name': 'USB Gecko driver (FTDI)', 'group': 'optional', 'ok': ftdi[0], 'where': ftdi[1],
              'purpose': 'The USB Gecko as a COM port', 'link': 'https://ftdichip.com/drivers/vcp-drivers/'},
         ])
     return PACKAGES_CACHE['list']
