@@ -721,7 +721,7 @@ function renderTree() {
 function renderPaneEmpty() {
   const n = C.data.assets.length, pending = C.data.assets.filter((a) => a.state !== 'ready').length;
   $('#cPane').innerHTML = `<div class="cwelcome"><h3>${esc(project().title)}</h3>
-    <p>Pick a file on the left. Code opens here to edit (Ctrl+S saves); a picture or sound in Raw/ shows its asset and settings.</p>
+    <p>Pick a file on the left. Code opens here to edit (Ctrl+S saves). A file in Raw/ (a picture, sound, model, video or font) shows the asset it becomes, its settings, and the Lua that uses it.</p>
     <p class="muted">${n ? `${n} file${n > 1 ? 's' : ''} in Raw/${pending ? `, ${pending} to convert` : ', all converted'}.` : 'Nothing in Raw/ yet: drop art, sound or models anywhere on this page.'}</p>
     ${C.data.tree.some((e) => e.path === 'build.py') ? '<p class="muted">build.py runs on every Build, after the assets.</p>'
       : `<p><button class="btn" id="cBuildPy">+ Build step (build.py)</button></p>
