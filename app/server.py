@@ -3,8 +3,8 @@
     Double-click "app\\DolphinWorks.bat" (or: python app/server.py)
 
 A local web app in its own window: this file serves the interface (app/ui) on 127.0.0.1 and does
-the work behind it -- finding the projects (every Octave project, .octp, under Documents and the
-DolphinWorks folder), building them with Octave (the toolchain chosen, devkitPro's or
+the work behind it -- finding the projects (every Octave project, .octp, under C:\\DolphinWorks\\Projects
+and the folders added in Settings), building them with Octave (the toolchain chosen, devkitPro's or
 gekko-toolchain), running the disc image in Dolphin (Fast or Accurate), opening the editor,
 copying the disc image to an SD card, and watching for a USB Gecko and SD cards. The window is
 Microsoft Edge in app mode, with a profile of its own; closing it stops the app.
@@ -193,7 +193,7 @@ def find_art(root):
     return banner, screenshot
 
 
-DEFAULT_ROOTS = [DOCUMENTS, DW_ROOT / 'Projects']
+DEFAULT_ROOTS = [DW_ROOT / 'Projects']             # more are added in Settings
 
 
 def project_roots():
@@ -650,6 +650,10 @@ def brand_window(proc):
 
 def main():
     global PROJECTS
+    try:
+        (DW_ROOT / 'Projects').mkdir(parents=True, exist_ok=True)   # the default home for projects
+    except OSError:
+        pass
     PROJECTS = scan_projects()
     with socket.socket() as s:
         s.bind(('127.0.0.1', 0))
