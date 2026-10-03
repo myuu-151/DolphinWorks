@@ -97,6 +97,10 @@ svg { fill: currentColor; }
   background: var(--art, none) center/contain no-repeat, linear-gradient(180deg, #101318, #0b0e13); }
 .dtitle { display: flex; align-items: flex-start; gap: 10px; }
 .dtitle h2 { margin: 0; font-size: 24px; font-weight: 600; }
+#ptitle { cursor: text; border-radius: 4px; outline: none; }
+#ptitle .rename { margin-left: 8px; font-size: 15px; color: var(--dim); opacity: 0; transition: opacity .15s; vertical-align: 3px; }
+#ptitle:hover .rename { opacity: 1; }
+#ptitle[contenteditable="plaintext-only"] { background: #10141b; box-shadow: 0 0 0 1px var(--blue2); padding: 0 6px; }
 .dtitle .path { color: var(--muted); font-size: 13px; }
 .dtitle .btn { margin-left: auto; }
 .tags { display: flex; gap: 8px; flex-wrap: wrap; }

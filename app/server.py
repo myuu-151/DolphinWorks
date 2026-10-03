@@ -372,6 +372,13 @@ def scan_projects():
             'modified': max(octp.stat().st_mtime, iso.stat().st_mtime if iso.exists() else 0),
         })
     projects.extend(scan_disc_images(roots, projects))
+    # names given in DolphinWorks (Rename): its own, the project's files untouched
+    names = load_state().get('names', {})
+    for p in projects:
+        p['key'] = (p['octp'] or p['iso']).lower()
+        p['own_title'] = p['title']
+        if names.get(p['key']):
+            p['title'] = names[p['key']]
     projects.sort(key=lambda p: -p['modified'])
     # the same title twice (a clone, the PC version): each told apart by its folder
     titles = [p['title'] for p in projects]
@@ -921,6 +928,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.json({'ok': True})
         if action == 'gdb' and project:
             return self.json(start_gdb(project))
+        if action == 'rename' and project:
+            names = load_state().get('names', {})
+            title = ' '.join(str(body.get('title', '')).split())[:120]    # (one line, trimmed)
+            if title and title != project['own_title']:
+                names[project['key']] = title
+            else:
+                names.pop(project['key'], None)                         # (empty, or its own: back to its own)
+            save_state(names=names)
+            PROJECTS = scan_projects()
+            return self.json({'ok': True})
         if action == 'gecko_connect':
             ok, message = GECKO.connect()
             return self.json({'ok': ok, 'message': message, **GECKO.status()})

@@ -73,7 +73,7 @@ function renderDetail() {
   const busy = !!state.busy;
   $('#detail').innerHTML = `
     <div class="banner" style="${p.banner ? `--art:url('${image(p, 'banner')}')` : ''}"></div>
-    <div class="dtitle"><div><h2>${esc(p.title)}</h2><div class="path">${esc(p.root)}</div></div>
+    <div class="dtitle"><div><h2 id="ptitle" title="Click to rename (here in DolphinWorks only)">${esc(p.title)}<span class="rename" aria-hidden="true">✎</span></h2><div class="path">${esc(p.root)}</div></div>
       <button class="btn" data-act="folder">${ICONS.folder} Open Folder</button></div>
     <div class="tags"><span class="tag">GameCube</span><span class="tag">ISO</span><span class="tag">${esc(p.engine)}</span></div>
     <div class="actions">
@@ -279,6 +279,35 @@ function bindGecko() {
     geckoStatus(r);
   };
   $('#gcClear').onclick = () => { $('#gcLog').innerHTML = ''; };
+  // Rename: click the title, type, Enter (Esc cancels; empty: its own name again). DolphinWorks' name only.
+  $('#detail').addEventListener('click', (e) => {
+    const h = e.target.closest('#ptitle');
+    if (!h || h.isContentEditable) return;
+    const p = project();
+    h.textContent = p.title;
+    h.contentEditable = 'plaintext-only';
+    h.focus();
+    document.getSelection().selectAllChildren(h);
+    let done = false;
+    const finish = async (save) => {
+      if (done) return;
+      done = true;
+      h.contentEditable = 'false';
+      const title = h.textContent.trim();
+      if (save && title !== p.title) {
+        await api('/api/rename', { id: p.id, title });
+        await refresh();
+        toast(title && title !== p.own_title ? `Renamed: ${title}` : `Back to its own name: ${p.own_title}`);
+      } else {
+        renderDetail();
+      }
+    };
+    h.onkeydown = (k) => {
+      if (k.key === 'Enter') { k.preventDefault(); finish(true); }
+      else if (k.key === 'Escape') { k.preventDefault(); finish(false); }
+    };
+    h.onblur = () => finish(true);
+  });
   $('#startGdb').onclick = async () => {
     const p = project();
     const r = await api('/api/gdb', { id: p && p.id });
