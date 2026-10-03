@@ -396,6 +396,57 @@ def edit_picture(project, which, frames):
         raise ValueError(f'Not a picture: {which}')
 
 
+PROJECT_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_]{0,31}$')
+GITIGNORE = 'Packaged/\nBuild/\nIntermediate/\nGenerated/\n'
+
+
+def new_project(name, kind, where):
+    """A new Octave game, made in code (no editor), from Octave's own Template: <where>/<name>/ with <name>.octp,
+    Config.ini, Assets/, Scripts/ -- and for Lua, Scripts/Startup.lua and Game.lua (the game); for C++,
+    Source/Main.cpp and Makefile_GCN (the engine found through OCTAVE, else this Octave's path). It builds and
+    runs as it is: "Hello, GameCube!", and A counts. Returns the .octp."""
+    octave = find_octave()
+    template = octave / 'Template' if octave else None
+    if not template or not (template / 'Scripts' / 'Startup.lua').exists():
+        raise ValueError("This Octave's Template is older than DolphinWorks' New project: update it (Engine page).")
+    if not PROJECT_NAME.match(name or ''):
+        raise ValueError('A name is a letter, then letters, digits or _ (up to 32): it names the disc and its files.')
+    if kind not in ('lua', 'cpp'):
+        raise ValueError('Lua or C++?')
+    where = Path(where)
+    if not where.is_dir():
+        raise ValueError(f'Not a folder: {where}')
+    root = where / name
+    if root.exists():
+        raise ValueError(f'{root} is there already.')
+    named = lambda text: text.replace('OctTemplate', name)
+    (root / 'Assets').mkdir(parents=True)
+    (root / 'Scripts').mkdir()
+    (root / f'{name}.octp').write_text(f'name={name}\nassets=Assets\n', newline='\n')
+    (root / 'Config.ini').write_text(named((template / 'Config.ini').read_text()), newline='\n')
+    if kind == 'lua':
+        for f in ('Startup.lua', 'Game.lua'):
+            shutil.copy2(template / 'Scripts' / f, root / 'Scripts' / f)
+    else:
+        shutil.copytree(template / 'Source', root / 'Source')
+        makefile = named((template / 'Makefile_GCN').read_text())
+        makefile = makefile.replace('$(abspath $(CURDIR)/../octave-libogc)', octave.as_posix())   # (where it is here)
+        (root / 'Makefile_GCN').write_text(makefile, newline='\n')
+    (root / '.gitignore').write_text(GITIGNORE, newline='\n')
+    (root / 'README.md').write_text(
+        f'# {name}\n\nA GameCube game made with Octave-libogc, in {"Lua" if kind == "lua" else "C++"}: '
+        + ('`Scripts/Startup.lua` starts it, and `Scripts/Game.lua` is the game.' if kind == 'lua' else
+           '`Source/Main.cpp` is the game (the engine calls its hooks).')
+        + '\n\nBuild it with DolphinWorks, or `Octave.exe -headless -project ' + f'{name}.octp -build GameCube`.\n',
+        newline='\n')
+    # its folder searched for projects, if it isn't already
+    st = load_state()
+    roots = st.get('project_roots', [])
+    if not any(where.resolve() == r.resolve() or where.resolve().is_relative_to(r.resolve()) for r in project_roots()):
+        save_state(project_roots=roots + [str(where.resolve())])
+    return root / f'{name}.octp'
+
+
 def scan_projects():
     seen, projects = set(), []
     roots = project_roots()
@@ -1258,6 +1309,18 @@ class Handler(BaseHTTPRequestHandler):
         if action == 'gecko_send':
             ok = GECKO.send(str(body.get('text', '')))
             return self.json({'ok': ok, 'message': None if ok else 'Not connected to the USB Gecko.', **GECKO.status()})
+        if action == 'new_project':
+            try:
+                octp = new_project(str(body.get('name', '')).strip(), body.get('kind'), body.get('where') or str(DEFAULT_ROOTS[0]))
+            except (ValueError, OSError) as e:
+                return self.json({'ok': False, 'message': str(e)})
+            save_state(selected=str(octp))
+            PROJECTS = scan_projects()
+            JOBS.emit('line', text=f'New project: {octp}', level='success')
+            return self.json({'ok': True, 'octp': str(octp)})
+        if action == 'pick_folder':
+            folder = pick_folder(body.get('title') or 'Choose a folder')
+            return self.json({'ok': bool(folder), 'path': folder})
         if action == 'rescan':
             PROJECTS = scan_projects()
             return self.json({'ok': True})

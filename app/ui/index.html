@@ -49,7 +49,8 @@
       <div class="page-head">
         <svg viewBox="0 0 24 24" class="page-icon"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>
         <div><h1>Projects</h1><p>Manage your games and development projects.</p></div>
-        <button class="btn primary" id="rescan">⟳ Rescan</button>
+        <div class="head-actions"><button class="btn" id="newProject">+ New project</button>
+          <button class="btn primary" id="rescan">⟳ Rescan</button></div>
       </div>
       <div class="projects">
         <div class="list-panel">
@@ -167,6 +168,28 @@
       <div class="page-head"><div><h1>Settings</h1><p>Paths and choices, saved between sessions.</p></div></div>
       <div class="card" id="settingsCard"></div>
     </div>
+
+    <!-- NEW PROJECT -->
+    <dialog id="newDialog" class="dialog">
+      <form method="dialog" id="newForm">
+        <h2>New project</h2>
+        <p class="muted">A GameCube game made in code, from Octave's template. It builds and runs straight away:
+          "Hello, GameCube!", and A counts.</p>
+        <label class="field">Name <input id="newName" required maxlength="32" pattern="[A-Za-z][A-Za-z0-9_]*"
+          placeholder="MyGame" autocomplete="off"><span class="hint">Letters, digits and _: it names the disc and its files.</span></label>
+        <div class="kinds">
+          <label class="kind"><input type="radio" name="newKind" value="lua" checked><b>Lua</b>
+            <span>Scripts only: <code>Startup.lua</code> starts it, <code>Game.lua</code> is the game. Nothing to compile.</span></label>
+          <label class="kind"><input type="radio" name="newKind" value="cpp"><b>C++</b>
+            <span><code>Source/Main.cpp</code> and a Makefile, linked with the engine. Lua still runs beside it.</span></label>
+        </div>
+        <label class="field">Where <span class="where-row"><select id="newWhere"></select>
+          <button type="button" class="btn small" id="newBrowse">Browse…</button></span></label>
+        <p class="err" id="newError"></p>
+        <div class="dialog-buttons"><button type="button" class="btn" id="newCancel">Cancel</button>
+          <button class="btn primary" id="newCreate">Create</button></div>
+      </form>
+    </dialog>
 
     <!-- LOG -->
     <div class="splitter" id="logSplit" title="Drag to resize the build log"></div>

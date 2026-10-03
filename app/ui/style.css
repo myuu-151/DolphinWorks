@@ -72,6 +72,28 @@ svg { fill: currentColor; }
 .page-head h1 { margin: 0; font-size: 24px; font-weight: 600; }
 .page-head p { margin: 0; color: var(--muted); }
 .page-head .btn { margin-left: auto; }
+.page-head .head-actions { margin-left: auto; display: flex; gap: 8px; }
+.page-head .head-actions .btn { margin-left: 0; }
+/* dialogs (New project) */
+.dialog { width: min(560px, calc(100vw - 32px)); padding: 22px 24px; border: 1px solid var(--line2); border-radius: 10px;
+  background: linear-gradient(180deg, #1a2029, #12161c); color: inherit; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.dialog::backdrop { background: rgba(4, 6, 9, .62); }
+.dialog h2 { margin: 0 0 6px; font-size: 20px; }
+.dialog > form > p.muted { margin: 0 0 16px; font-size: 13px; line-height: 1.45; }
+.dialog .field { display: block; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.dialog .field input, .dialog .field select { display: block; width: 100%; margin-top: 6px; box-sizing: border-box; }
+.dialog .hint { display: block; margin-top: 4px; font-size: 12px; color: var(--dim); }
+.dialog .where-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.dialog .where-row select { margin-top: 0; flex: 1; min-width: 0; }
+.dialog .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 14px; }
+.dialog .kind { display: block; padding: 12px; border: 1px solid var(--line2); border-radius: 8px; cursor: pointer; background: #10141b; }
+.dialog .kind:has(input:checked) { border-color: var(--blue2); background: #19283e; }
+.dialog .kind input { margin: 0 8px 0 0; vertical-align: -2px; }
+.dialog .kind span { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.dialog .kind code, .dialog p code { font-family: Consolas, monospace; font-size: 12px; color: #bfd3ee; }
+.dialog .err:empty { display: none; }
+.dialog .err { margin: 0 0 12px; font-size: 13px; }
+.dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .page-icon { width: 46px; height: 46px; color: #c9d6ee; }
 
 /* --- projects --- */

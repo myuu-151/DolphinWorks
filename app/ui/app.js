@@ -71,7 +71,7 @@ function renderList() {
 function renderDetail() {
   const p = project();
   if (!p) {
-    $('#detail').innerHTML = '<div class="empty">Choose a project, or make one in the Octave editor.</div>';
+    $('#detail').innerHTML = '<div class="empty">Choose a project, or make one: + New project, above.</div>';
     return;
   }
   const busy = !!state.busy;
@@ -638,6 +638,45 @@ function bindEngine() {
   });
 }
 
+// --- new project ----------------------------------------------------------------------------------
+// A game made in code, from Octave's Template (Lua or C++), in one of the project folders (or one chosen).
+
+function bindNewProject() {
+  const dialog = $('#newDialog');
+  const fillWhere = (extra) => {
+    const roots = (state.project_roots || []).map((r) => r.path);
+    if (extra && !roots.includes(extra)) roots.unshift(extra);
+    $('#newWhere').innerHTML = roots.map((r) => `<option value="${esc(r)}" ${r === extra ? 'selected' : ''}>${esc(r)}</option>`).join('');
+  };
+  $('#newProject').onclick = () => {
+    $('#newError').textContent = '';
+    $('#newName').value = '';
+    fillWhere();
+    dialog.showModal();
+    $('#newName').focus();
+  };
+  $('#newCancel').onclick = () => dialog.close();
+  $('#newBrowse').onclick = async () => {
+    const r = await api('/api/pick_folder', { title: 'Where to make the new project' });
+    if (r.ok) fillWhere(r.path);
+  };
+  $('#newForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = $('#newName').value.trim();
+    const kind = document.querySelector('input[name="newKind"]:checked').value;
+    $('#newCreate').disabled = true;
+    const r = await api('/api/new_project', { name, kind, where: $('#newWhere').value });
+    $('#newCreate').disabled = false;
+    if (!r.ok) { $('#newError').textContent = r.message || 'That did not work.'; return; }
+    dialog.close();
+    await refresh();
+    const made = state.projects.find((p) => (p.octp || '').toLowerCase() === r.octp.toLowerCase());
+    if (made) { selected = made.id; render(); }
+    $('.nav[data-page="projects"]').click();
+    toast(`${name} made: Build it, then Run in Dolphin.`);
+  };
+}
+
 // --- actions -------------------------------------------------------------------------------------
 
 async function act(name) {
@@ -784,6 +823,7 @@ function bind() {
     }
   });
   $('#search').oninput = renderList;
+  bindNewProject();
   $('#rescan').onclick = async () => { await api('/api/rescan', {}); await refresh(); toast(`${state.projects.length} projects`); };
   $('#dolphinVersion').onchange = async (e) => { await api('/api/settings', { dolphin: e.target.value }); await refresh(); };
   $('#toolchain').onchange = (e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };
