@@ -137,9 +137,13 @@ svg { fill: currentColor; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .btn.icon { padding: 4px 9px; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
-.right { margin: 14px 14px 10px 0; padding: 12px 14px; overflow-y: auto; font-size: 13px; }
+.right { margin: 14px 14px 10px 0; padding: 12px 14px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; }
+.right > * { flex: none; }
 .right h3 { margin: 2px 0 10px; font-size: 15px; font-weight: 600; }
-.right h3:not(:first-child) { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* the dividers share the panel's spare height, so the sections spread to fill it */
+.right > .divider { flex: 1 1 26px; min-height: 26px; position: relative; }
+.divider::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
+.right .check { margin: 0; }
 .field { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
 .field:has(> :nth-child(3)) { grid-template-columns: 82px 1fr auto; }
 .box .muted { margin-left: 6px; }
