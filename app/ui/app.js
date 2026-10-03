@@ -49,6 +49,7 @@ function render() {
   renderRight();
   renderPages();
   renderStatus();
+  geckoStatus();
 }
 
 function renderList() {
@@ -213,6 +214,70 @@ function logLine(e) {
   if (atBottom) log.scrollTop = log.scrollHeight;
 }
 
+// --- the USB Gecko console (Debug page) ----------------------------------------------------------
+
+let gecko = { connected: false, port: null, rx: 0, tx: 0, error: null };
+let geckoLeftOff = false;                            // disconnected by hand: no connecting by itself again
+
+function geckoLine(e) {
+  const log = $('#gcLog');
+  const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+  const div = document.createElement('div');
+  div.className = 'l ' + (e.source || 'cube');
+  div.innerHTML = `<span class="t">[${esc(e.time)}]</span>${esc(e.text)}`;
+  log.appendChild(div);
+  while (log.childElementCount > 5000) log.firstChild.remove();
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+
+function geckoStatus(s) {
+  if (s) gecko = { ...gecko, ...s };
+  const kb = (n) => n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`;
+  $('#gcDot').className = 'dot' + (gecko.connected ? '' : ' off');
+  $('#gcStatus').textContent = gecko.connected ? `Connected on ${gecko.port}`
+    : gecko.error || (state && state.gecko ? `Not connected (the Gecko is on ${state.gecko})` : 'No USB Gecko plugged in');
+  $('#gcCounts').textContent = gecko.connected ? `received ${kb(gecko.rx)} · sent ${kb(gecko.tx)}` : '';
+  $('#gcConnect').textContent = gecko.connected ? 'Disconnect' : 'Connect';
+  $('#gcConnect').disabled = !gecko.connected && !(state && state.gecko);
+  $('#gcInput').disabled = !gecko.connected;
+  if (state && state.gecko) $('#gdbHow').textContent = `powerpc-eabi-gdb.exe game.elf\n(gdb) target remote \\\\.\\${state.gecko}`;
+}
+
+// opening the Debug page connects, if a Gecko is plugged in and it wasn't disconnected by hand
+function geckoAuto() {
+  if ($('#page-debug').classList.contains('active') && !gecko.connected && !geckoLeftOff && state && state.gecko)
+    api('/api/gecko_connect', {}).then((r) => { geckoStatus(r); if (!r.ok) toast(r.message); });
+}
+
+function bindGecko() {
+  $('#gcConnect').onclick = async () => {
+    const r = await api(gecko.connected ? '/api/gecko_disconnect' : '/api/gecko_connect', {});
+    geckoLeftOff = gecko.connected;
+    geckoStatus(r);
+    if (!r.ok && r.message) toast(r.message);
+  };
+  $('#gcForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const text = $('#gcInput').value;
+    if (!text.trim()) return;
+    const r = await api('/api/gecko_send', { text });
+    if (r.ok) $('#gcInput').value = '';
+    else toast(r.message || 'Not sent.');
+    geckoStatus(r);
+  };
+  $('#gcClear').onclick = () => { $('#gcLog').innerHTML = ''; };
+  $('#gcSave').onclick = () => {
+    const text = $$('#gcLog .l').map((l) => l.textContent).join('\r\n') + '\r\n';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = `gecko-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.txt`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  // the counts, while connected (they change with every line)
+  setInterval(() => { if (gecko.connected && $('#page-debug').classList.contains('active')) api('/api/state').then((s) => geckoStatus(s.gecko_console)); }, 2000);
+}
+
 function listen() {
   const events = new EventSource('/api/events');
   events.onmessage = (m) => {
@@ -226,6 +291,8 @@ function listen() {
       toast(e.ok ? `${e.title}: done` : `${e.title}: failed (see the log)`);
       refresh();
     } else if (e.kind === 'refresh') refresh();
+    else if (e.kind === 'gecko') geckoLine(e);
+    else if (e.kind === 'gecko_status') geckoStatus(e);
   };
 }
 
@@ -328,6 +395,7 @@ function bind() {
     $$('.nav').forEach((x) => x.classList.toggle('active', x === b));
     $$('.page').forEach((pg) => pg.classList.toggle('active', pg.id === 'page-' + b.dataset.page));
     placeScreen();                                   // (the game shows only on the Run page)
+    geckoAuto();                                     // (opening Debug connects the Gecko)
   });
   $('#stopGame').onclick = () => { if (game) host.postMessage({ type: 'stop', pid: game.pid }); };
   $('#popOut').onclick = () => {
@@ -397,4 +465,10 @@ bind();
 const startPage = new URLSearchParams(location.search).get('page');       // ?page=settings opens on that page
 if (startPage) $(`.nav[data-page="${startPage}"]`)?.click();
 if (!location.search.includes('snapshot')) listen();      // (a still picture of the page: no live events)
-refresh().then(async () => (await api('/api/history')).forEach(logLine));
+bindGecko();
+refresh().then(async () => {
+  (await api('/api/history')).forEach(logLine);
+  (await api('/api/gecko_history')).forEach(geckoLine);
+  geckoStatus(state.gecko_console);
+  geckoAuto();
+});

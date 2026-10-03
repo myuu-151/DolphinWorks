@@ -221,6 +221,28 @@ a.fix { color: #8fb5ff; }
 .log { flex: 1; overflow-y: auto; padding: 8px 12px; font: 12.5px/1.5 Consolas, "Cascadia Mono", monospace; user-select: text; }
 .log .l { white-space: pre-wrap; word-break: break-all; }
 .log .t { color: var(--dim); margin-right: 10px; }
+
+/* --- the Debug page: the USB Gecko console, GDB beside it --- */
+.debug { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 12px; }
+.console-card { display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; gap: 10px; container-type: inline-size; }
+.console-head { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.console-head h2 { margin: 0 4px 0 0; }
+.console-head #gcStatus, .console-head #gcCounts { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 13px; }
+@container (max-width: 620px) { .console-head #gcCounts { display: none; } }   /* (narrow: the counts go first) */
+@container (max-width: 470px) { .console-head h2 { display: none; } }
+.console-head .grow { flex: 1; }
+.gecko-log { background: #0c1015; border: 1px solid var(--line); border-radius: 6px; min-height: 0; }
+.gecko-log .cube { color: #d7e3f4; }                 /* what the GameCube sent */
+.gecko-log .pc { color: #8fb5ff; }                   /* what we sent it */
+.gecko-log .pc::before { content: "> "; color: var(--dim); }
+.gecko-log .info { color: var(--dim); font-style: italic; }
+.console-send { display: flex; gap: 8px; }
+.console-send input { flex: 1; min-width: 0; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line2); background: #0f141c;
+  outline: none; font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; }
+.console-send input:focus { border-color: var(--blue2); }
+.console-send input:disabled { opacity: .5; }
+.gdb-card { overflow-y: auto; min-height: 0; }
+.gdb-card code { font-family: Consolas, monospace; color: #bfe0c8; }
 .log .error { color: var(--err); }
 .log .warning { color: var(--warn); }
 .log .success { color: var(--ok); font-weight: 600; }

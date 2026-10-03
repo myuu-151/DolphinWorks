@@ -422,6 +422,93 @@ class Jobs:
 
 
 JOBS = Jobs()
+
+
+# --- the USB Gecko console (the Debug page) --------------------------------------------------------
+
+class GeckoConsole:
+    """COM port <-> the page: a thread reads what the GameCube sends (each line to the page as a 'gecko' event),
+    send() writes to it. One program at a time can have the port: disconnect() frees it (for GDB, say)."""
+
+    class _Timeouts(ctypes.Structure):
+        _fields_ = [(n, ctypes.c_ulong) for n in ('ReadIntervalTimeout', 'ReadTotalTimeoutMultiplier',
+                    'ReadTotalTimeoutConstant', 'WriteTotalTimeoutMultiplier', 'WriteTotalTimeoutConstant')]
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.handle, self.port, self.error = None, None, None
+        self.rx = self.tx = 0
+        self.history = []                    # the latest lines, for a page opened later
+        self.k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        self.k32.CreateFileW.restype = ctypes.c_void_p
+
+    def status(self):
+        return {'connected': self.handle is not None, 'port': self.port, 'rx': self.rx, 'tx': self.tx, 'error': self.error}
+
+    def _line(self, text, source):
+        event = {'text': text, 'source': source}             # source: 'cube' (the GameCube), 'pc' (sent), 'info'
+        with self.lock:
+            self.history = (self.history + [dict(event, time=time.strftime('%H:%M:%S'))])[-3000:]
+        JOBS.emit('gecko', **event)
+
+    def connect(self, port=None):
+        port = port or usb_gecko()
+        if not port:
+            return False, 'No USB Gecko: plug it in (and tick Load VCP for it in Device Manager).'
+        if self.handle is not None:
+            return True, f'Already connected on {self.port}'
+        handle = self.k32.CreateFileW(rf'\\.\{port}', 0x80000000 | 0x40000000, 0, None, 3, 0, None)
+        if handle in (None, ctypes.c_void_p(-1).value):
+            err = ctypes.get_last_error()
+            return False, f'{port} is in use by another program.' if err == 5 else f'Could not open {port} (error {err}).'
+        self.k32.SetCommTimeouts(ctypes.c_void_p(handle), ctypes.byref(self._Timeouts(1, 0, 100, 0, 500)))
+        self.k32.PurgeComm(ctypes.c_void_p(handle), 0x000F)
+        self.handle, self.port, self.error, self.rx, self.tx = handle, port, None, 0, 0
+        self._line(f'Connected to the USB Gecko on {port}', 'info')
+        threading.Thread(target=self._read, args=(handle,), daemon=True).start()
+        JOBS.emit('gecko_status', **self.status())
+        return True, f'Connected on {port}'
+
+    def disconnect(self, reason=None):
+        handle, self.handle = self.handle, None
+        if handle is not None:
+            self.k32.CloseHandle(ctypes.c_void_p(handle))
+            self.error = reason
+            self._line(reason or f'Disconnected from {self.port}', 'info')
+            JOBS.emit('gecko_status', **self.status())
+
+    def send(self, text):
+        handle = self.handle
+        if handle is None:
+            return False
+        data = (text.rstrip('\r\n') + '\n').encode('latin-1', 'replace')
+        done = ctypes.c_ulong()
+        ok = self.k32.WriteFile(ctypes.c_void_p(handle), data, len(data), ctypes.byref(done), None)
+        if ok and done.value:
+            self.tx += done.value
+            self._line(text.rstrip('\r\n'), 'pc')
+            return True
+        return False
+
+    def _read(self, handle):
+        buf, got, pending = ctypes.create_string_buffer(4096), ctypes.c_ulong(), b''
+        while self.handle == handle:
+            if not self.k32.ReadFile(ctypes.c_void_p(handle), buf, 4096, ctypes.byref(got), None):
+                if self.handle == handle:                 # (not a disconnect of ours: the Gecko went away)
+                    self.disconnect(f'Lost the USB Gecko on {self.port} (unplugged?)')
+                return
+            if got.value:
+                self.rx += got.value
+                pending += buf.raw[:got.value]
+                while b'\n' in pending:
+                    line, pending = pending.split(b'\n', 1)
+                    self._line(line.decode('latin-1').rstrip('\r'), 'cube')
+                if len(pending) > 4096:                   # (a very long line with no end: show it anyway)
+                    self._line(pending.decode('latin-1'), 'cube')
+                    pending = b''
+
+
+GECKO = GeckoConsole()
 SOURCE_LINE = re.compile(r'^\s*[\w.+-]+\.(?:cpp|c)$')
 
 
@@ -687,6 +774,7 @@ def state_payload():
         'sd_cards': sd_cards(),
         'sd_card': st.get('sd_card'),
         'busy': JOBS.busy,
+        'gecko_console': GECKO.status(),
     }
 
 
@@ -716,6 +804,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(state_payload())
         if url.path == '/api/history':
             return self.json(JOBS.history)
+        if url.path == '/api/gecko_history':
+            return self.json(GECKO.history)
         if url.path == '/api/events':
             return self.events()
         if url.path == '/api/image':
@@ -761,6 +851,15 @@ class Handler(BaseHTTPRequestHandler):
             save_state(**{k: v for k, v in body.items() if k in
                           ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'sd_card', 'selected')})
             return self.json({'ok': True})
+        if action == 'gecko_connect':
+            ok, message = GECKO.connect()
+            return self.json({'ok': ok, 'message': message, **GECKO.status()})
+        if action == 'gecko_disconnect':
+            GECKO.disconnect()
+            return self.json({'ok': True, **GECKO.status()})
+        if action == 'gecko_send':
+            ok = GECKO.send(str(body.get('text', '')))
+            return self.json({'ok': ok, 'message': None if ok else 'Not connected to the USB Gecko.', **GECKO.status()})
         if action == 'rescan':
             PROJECTS = scan_projects()
             return self.json({'ok': True})

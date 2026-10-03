@@ -96,14 +96,32 @@
     <!-- DEBUG -->
     <div class="page" id="page-debug">
       <div class="page-head"><div><h1>Debug</h1><p>Live logs and GDB through a USB Gecko, on hardware or in Dolphin.</p></div></div>
-      <div class="grid2">
-        <div class="card"><h2>USB Gecko</h2><div id="geckoBig"></div>
-          <p class="muted">Plug it into memory card slot A. In Dolphin, DolphinWorks' profiles emulate one in slot B.</p></div>
-        <div class="card"><h2>GDB</h2>
-          <p class="muted">Build with libogc's debug stub, then connect:</p>
-          <pre class="code">powerpc-eabi-gdb.exe game.elf
-(gdb) target remote \\.\COM5</pre>
-          <p class="muted soon">Coming next: a live log console and one-click GDB here.</p></div>
+      <div class="debug">
+        <!-- the USB Gecko console: what the GameCube sends, live; a line to send it -->
+        <div class="card console-card">
+          <div class="console-head">
+            <h2>Gecko console</h2>
+            <span class="dot off" id="gcDot"></span><span id="gcStatus" class="muted"></span>
+            <span class="grow"></span>
+            <span class="muted" id="gcCounts"></span>
+            <button class="btn small" id="gcConnect">Connect</button>
+            <button class="btn small" id="gcSave" title="Save the console to a text file">⤓ Save</button>
+            <button class="btn small" id="gcClear">⊘ Clear</button>
+          </div>
+          <div class="log gecko-log" id="gcLog"></div>
+          <form class="console-send" id="gcForm">
+            <input id="gcInput" placeholder="Send a line to the GameCube..." autocomplete="off" spellcheck="false">
+            <button class="btn primary" type="submit">Send</button>
+          </form>
+        </div>
+        <div class="card gdb-card"><h2>GDB</h2>
+          <p class="muted">Build with libogc's debug stub (<code>DEBUG_Init</code>), then connect the console's port:</p>
+          <pre class="code" id="gdbHow">powerpc-eabi-gdb.exe game.elf
+(gdb) target remote \\.\COM3</pre>
+          <p class="muted">Disconnect the console first: one program at a time can use the port.</p>
+          <p class="muted soon">Coming next: one-click GDB here.</p>
+          <div id="geckoBig"></div>
+          <p class="muted">The USB Gecko goes in memory card slot A. In Dolphin, DolphinWorks' profiles emulate one in slot B.</p></div>
       </div>
     </div>
 
