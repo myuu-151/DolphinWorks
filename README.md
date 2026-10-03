@@ -8,7 +8,7 @@ An open-source development suite for Nintendo GameCube
 |---|---|---|
 | **[Octave-libogc](https://github.com/myuu-151/Octave-Libogc)**<br>Engine | 3D game engine with a scene editor and Lua scripting. Packages projects as bootable GameCube disc images. | Download the latest release, or build from source with `Build Octave.bat`. |
 | **[gekko-toolchain](https://github.com/myuu-151/gekko-toolchain)**<br>Toolchain | Cross-compiler, linker and GameCube libraries: devkitPro's toolchain, distributed as a single archive (unofficial). | Extract the latest release and run `Install.bat`. |
-| **[Dolphin](https://dolphin-emu.org)**<br>Emulator | GameCube and Wii emulator for running and debugging builds on PC, with a log window, memory viewer and graphics debugger. 
+| **[Dolphin](https://dolphin-emu.org)**<br>Emulator | GameCube and Wii emulator for running and debugging builds on PC, with a log window, memory viewer and graphics debugger. | Installed by `dolphinworks.bat`, with a Fast and an Accurate profile. |
 
 ## Requirements
 
@@ -55,6 +55,7 @@ Forks of the toolchain's components are maintained to keep their sources availab
 | newlib | [myuu-151/newlib](https://github.com/myuu-151/newlib) |
 | GDB and binutils | [myuu-151/binutils-gdb](https://github.com/myuu-151/binutils-gdb) |
 | Swiss | [myuu-151/swiss-gc-libogc](https://github.com/myuu-151/swiss-gc-libogc) |
+| Dolphin | [myuu-151/dolphin](https://github.com/myuu-151/dolphin), with its build on the release at the exact commit |
 
 ---
 

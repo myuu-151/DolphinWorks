@@ -9,8 +9,8 @@ Into one folder (C:\\DolphinWorks unless another is chosen), each part a tick bo
   pointed at it as its Install.bat does (left unticked when devkitPro or gekko-toolchain is there);
 - the engine: Octave-libogc's latest release, built, unzipped -- or its source, cloned, with its
   own builder opened to build it;
-- the emulator: Dolphin (the official build DolphinWorks hosts: dolphin-emu.org doesn't allow
-  scripted downloads), portable, with two profiles -- Fast, for everyday testing, and Accurate,
+- the emulator: Dolphin (the official build, hosted on the Dolphin fork's releases beside its
+  source: dolphin-emu.org doesn't allow scripted downloads), portable, with two profiles -- Fast, for everyday testing, and Accurate,
   as close to the console as Dolphin goes -- and a launcher for each (Dolphin.bat,
   "Dolphin (Accurate).bat").
 
@@ -42,7 +42,9 @@ SETTINGS = Path(__file__).with_name('.setup.json')            # (not in git)
 DEFAULT_ROOT = Path(r'C:\DolphinWorks')
 TOOLCHAIN_REPO, ENGINE_REPO = 'myuu-151/gekko-toolchain', 'myuu-151/Octave-Libogc'
 PACKAGES = ('pillow', 'numpy')
-DOLPHINWORKS_REPO = 'myuu-151/DolphinWorks'      # its releases tagged dolphin-* hold the emulator
+# The emulator: the official Dolphin build, on a release of the Dolphin fork tagged at the exact
+# commit it was built from (dolphin-emu.org doesn't allow scripted downloads).
+DOLPHIN_REPO = 'myuu-151/dolphin'
 
 # Dolphin's settings, added to its own (what's set otherwise is kept). Both profiles: the real DSP
 # microcode (HLE freezes libasnd games), a USB Gecko in slot B for live logs (slot A keeps the
@@ -164,12 +166,8 @@ def dolphin_version(folder):
 
 
 def dolphin_release():
-    """(tag, asset name, URL, size) of the newest DolphinWorks release holding Dolphin."""
-    with urllib.request.urlopen(f'https://api.github.com/repos/{DOLPHINWORKS_REPO}/releases', timeout=60) as r:
-        releases = json.load(r)
-    release = next(x for x in releases if x['tag_name'].startswith('dolphin-'))
-    asset = next(a for a in release['assets'] if a['name'].endswith('.zip'))
-    return release['tag_name'], asset['name'], asset['browser_download_url'], asset['size']
+    """(tag, asset name, URL, size) of the Dolphin build on the Dolphin fork's latest release."""
+    return latest_release(DOLPHIN_REPO)
 
 
 def set_ini(path, values):
@@ -631,7 +629,7 @@ class Setup:
                 f'@echo off\r\nrem Dolphin, {what}.\r\n'
                 f'start "" "%~dp0Dolphin\\Dolphin.exe" -u "%~dp0Dolphin\\{user}" %*\r\n', encoding='utf-8',
                 newline='')                                 # (the \r\n as written, not doubled)
-        self.say(f'Dolphin {tag[len("dolphin-"):]}: {folder}; Dolphin.bat (Fast) and "Dolphin (Accurate).bat"')
+        self.say(f'Dolphin {tag}: {folder}; Dolphin.bat (Fast) and "Dolphin (Accurate).bat"')
         return True
 
     def run_install(self, root, want, from_source):
