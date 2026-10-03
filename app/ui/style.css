@@ -78,7 +78,7 @@ svg { fill: currentColor; }
   background: linear-gradient(180deg, var(--panel), #171d26); border: 1px solid var(--line); border-radius: 10px;
 }
 .list-panel { display: flex; flex-direction: column; min-height: 0; padding: 10px; gap: 8px; }
-#search { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line2); background: #10151b; outline: none; }
+#search { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line2); background: linear-gradient(180deg, #12171e, #161c24); outline: none; }
 #search:focus { border-color: var(--blue2); }
 .project-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
 .pitem { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
@@ -90,8 +90,8 @@ svg { fill: currentColor; }
 .pmeta { color: var(--muted); font-size: 12.5px; }
 
 .detail { padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
-.banner { flex: none; height: 168px; border-radius: 8px; background: #10151b center/contain no-repeat; border: 1px solid var(--line2);
-  background-color: #0f1319; }
+.banner { flex: none; height: 168px; border-radius: 8px; border: 1px solid var(--line2);
+  background: var(--art, none) center/contain no-repeat, linear-gradient(180deg, #10151b, #151a22); }
 .dtitle { display: flex; align-items: flex-start; gap: 10px; }
 .dtitle h2 { margin: 0; font-size: 24px; font-weight: 600; }
 .dtitle .path { color: var(--muted); font-size: 13px; }
@@ -114,7 +114,7 @@ svg { fill: currentColor; }
 .action.gray { background: linear-gradient(180deg, #283140, #1e2531); }
 .action[disabled] { opacity: .45; pointer-events: none; }
 .info-row { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.subcard { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #12181f; }
+.subcard { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: linear-gradient(180deg, #13191f, #181e27); }
 .subcard h3 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
 .kv { display: grid; grid-template-columns: 96px 1fr; row-gap: 6px; font-size: 13.5px; }
 .kv dt { color: var(--muted); }
@@ -129,8 +129,9 @@ svg { fill: currentColor; }
 .muted { color: var(--muted); }
 .soon { color: #8fb5ff; }
 .code { background: #0c1015; border: 1px solid var(--line); border-radius: 6px; padding: 10px; color: #bfe0c8; font: 12.5px Consolas, monospace; }
-.btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line2); background: #1c232e; cursor: pointer; }
-.btn:hover { background: #252e3b; }
+/* controls lighten towards their foot, as the panels they sit on do (flat, they'd look cut in) */
+.btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line2); background: linear-gradient(180deg, #1c232e, #222a36); cursor: pointer; }
+.btn:hover { background: linear-gradient(180deg, #232c39, #2a3341); }
 .btn.primary { background: linear-gradient(180deg, #2f72e6, #2560c8); border-color: #3c82f6; font-weight: 600; }
 .btn.green { background: linear-gradient(180deg, #1f9a52, #177a41); border-color: #2bb865; }
 .btn.purple { background: linear-gradient(180deg, #4b3c95, #3a2e78); border-color: #6a55c4; }
@@ -145,7 +146,8 @@ svg { fill: currentColor; }
 .field:has(> :nth-child(3)) { grid-template-columns: 86px 1fr auto; }
 .field label { color: var(--muted); font-size: 13.5px; }
 .field .value { font-size: 13.5px; }
-select { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line2); background: #141a22; }
+select { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line2); background: linear-gradient(180deg, #161c24, #1b222c); }
+select option { background: #161c24; }
 select:disabled { opacity: .7; }
 .check { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13.5px; cursor: pointer; }
 .check input { width: 17px; height: 17px; accent-color: var(--blue2); }
@@ -158,7 +160,7 @@ select:disabled { opacity: .7; }
 .dot.off { background: var(--dim); }
 @keyframes pulse { 50% { opacity: .35; } }
 .profile-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
-.profile { border: 1px solid var(--line2); border-radius: 8px; padding: 12px; cursor: pointer; background: #12181f; }
+.profile { border: 1px solid var(--line2); border-radius: 8px; padding: 12px; cursor: pointer; background: linear-gradient(180deg, #13191f, #181e27); }
 .profile b { display: block; margin-bottom: 4px; }
 .profile span { color: var(--muted); font-size: 12.5px; }
 .profile.active { border-color: var(--blue2); background: #172238; }

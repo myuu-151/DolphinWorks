@@ -71,7 +71,7 @@ function renderDetail() {
   }
   const busy = !!state.busy;
   $('#detail').innerHTML = `
-    <div class="banner" style="${p.banner ? `background-image:url('${image(p, 'banner')}')` : ''}"></div>
+    <div class="banner" style="${p.banner ? `--art:url('${image(p, 'banner')}')` : ''}"></div>
     <div class="dtitle"><div><h2>${esc(p.title)}</h2><div class="path">${esc(p.root)}</div></div>
       <button class="btn" data-act="folder">${ICONS.folder} Open Folder</button></div>
     <div class="tags"><span class="tag">GameCube</span><span class="tag">ISO</span><span class="tag">${esc(p.engine)}</span></div>
