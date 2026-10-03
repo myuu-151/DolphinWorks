@@ -550,8 +550,10 @@ function listen() {
       $('#progress').textContent = '';
       state.busy = null;
       toast(e.ok ? `${e.title}: done` : `${e.title}: failed (see the log)`);
+      if (C.runAfterBuild && e.title.startsWith('Build')) { C.runAfterBuild = false; if (e.ok) setTimeout(() => act('run'), 300); }
       refresh();
       if ($('#page-engine').classList.contains('active')) loadEngine(true);
+      if ($('#page-content').classList.contains('active')) loadContent();
     } else if (e.kind === 'refresh') refresh();
     else if (e.kind === 'gecko') geckoLine(e);
     else if (e.kind === 'gecko_status') geckoStatus(e);
@@ -636,6 +638,286 @@ function bindEngine() {
       if (!r.ok) toast(r.message || (r.busy ? `Busy: ${r.busy}` : 'That did not start.'));
     }
   });
+}
+
+// --- content: the game's files, its assets and its code -------------------------------------------
+// A tree of the project's folders (build output left out); a file opens on the right: code in an editor
+// (CodeMirror) that completes Octave's Lua API (read from the installed engine) and the game's asset names;
+// a picture or a sound in Raw/ shows, plays, and has its asset's settings (octkit's, Raw/assets.json).
+
+const C = { project: null, data: null, open: null, editor: null, dirty: false, folds: {}, api: null, scroll: {} };
+const TEXT_EXT = ['.lua', '.cpp', '.c', '.h', '.hpp', '.inl', '.ini', '.md', '.json', '.py', '.txt', '.octp', '.glsl', '.bat'];
+const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.bmp', '.webp', '.tga'];
+const AUDIO_EXT = ['.wav', '.ogg', '.mp3', '.flac'];
+const ext = (path) => (path.match(/\.[^./]+$/) || [''])[0].toLowerCase();
+const kb = (n) => n == null ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+
+async function loadContent(keepOpen = true) {
+  if (!state) await refresh();               // (opened at start: the projects first)
+  const p = project();
+  $('#contentTitle').textContent = p ? `· ${p.title}` : '';
+  if (!p || !p.octp) {
+    C.project = null;
+    $('#cTree').innerHTML = '<div class="empty">Choose a game in Projects (one with a project: a disc image on its own has no files to work on).</div>';
+    $('#cPane').innerHTML = '';
+    return;
+  }
+  if (C.project !== p.id) { C.project = p.id; C.open = null; C.dirty = false; }
+  if (!C.api) api('/api/luaapi').then((a) => { C.api = a; });
+  const r = await api('/api/content?id=' + encodeURIComponent(p.id));
+  if (!r.ok) { $('#cTree').innerHTML = `<div class="empty">${esc(r.message)}</div>`; return; }
+  C.data = r;
+  $('#cRootHint').textContent = r.kind === 'cpp' ? 'C++ and Lua' : 'Lua';
+  renderTree();
+  const asked = new URLSearchParams(location.search).get('open');   // ?open=Scripts/Game.lua: that file
+  if (asked && !C.opened) { C.opened = true; openFile(asked, true); }
+  else if (keepOpen && C.open && !C.dirty) openFile(C.open, true);
+  else if (!C.open) renderPaneEmpty();
+}
+
+const assetOf = (path) => C.data && C.data.assets.find((a) => 'Raw/' + a.source === path);
+const sourceOf = (path) => C.data && C.data.assets.find((a) => a.path === path);
+const STATE = { ready: ['ok', 'ready'], changed: ['warn', 'changed'], new: ['new', 'new'] };
+
+function renderTree() {
+  const row = (e, depth) => {
+    const pad = `style="padding-left:${8 + depth * 14}px"`;
+    if (e.dir) {
+      const open = C.folds[e.path] !== false;
+      return `<div class="crow dir${open ? ' open' : ''}" data-dir="${esc(e.path)}" ${pad}><span class="caret">${open ? '▾' : '▸'}</span>${esc(e.name)}</div>`
+        + (open ? e.children.map((c) => row(c, depth + 1)).join('') : '');
+    }
+    const a = assetOf(e.path), s = sourceOf(e.path);
+    const badge = a ? `<span class="cbadge ${STATE[a.state][0]}" title="${esc(a.asset)}: ${STATE[a.state][1]}">${esc(a.asset)}</span>`
+      : s ? `<span class="cbadge from" title="Made from Raw/${esc(s.source)}">from ${esc(s.source.split('/').pop())}</span>` : '';
+    const icon = IMAGE_EXT.includes(ext(e.path)) ? '▣' : AUDIO_EXT.includes(ext(e.path)) ? '♪' : ext(e.path) === '.oct' ? '◆'
+      : TEXT_EXT.includes(ext(e.path)) ? '‹›' : '·';
+    return `<div class="crow file${C.open === e.path ? ' sel' : ''}" data-file="${esc(e.path)}" ${pad}>
+      <span class="cicon">${icon}</span><span class="cname">${esc(e.name)}</span>${badge}</div>`;
+  };
+  $('#cTree').innerHTML = C.data.tree.map((e) => row(e, 0)).join('') || '<div class="empty">No files.</div>';
+}
+
+function renderPaneEmpty() {
+  const n = C.data.assets.length, pending = C.data.assets.filter((a) => a.state !== 'ready').length;
+  $('#cPane').innerHTML = `<div class="cwelcome"><h3>${esc(project().title)}</h3>
+    <p>Pick a file on the left. Code opens here to edit (Ctrl+S saves); a picture or sound in Raw/ shows its asset and settings.</p>
+    <p class="muted">${n ? `${n} file${n > 1 ? 's' : ''} in Raw/${pending ? `, ${pending} to convert` : ', all converted'}.` : 'Nothing in Raw/ yet: drop art and sound anywhere on this page.'}</p></div>`;
+}
+
+async function openFile(path, quiet) {
+  if (C.dirty && C.open !== path && !confirm(`${C.open} has changes that aren't saved. Leave them?`)) return;
+  if (C.editor && C.open) C.scroll[C.open] = C.editor.getScrollInfo().top;
+  C.open = path;
+  C.dirty = false;
+  C.editor = null;
+  renderTree();
+  const p = project(), e = ext(path), pane = $('#cPane');
+  const url = `/api/file?id=${encodeURIComponent(p.id)}&path=${encodeURIComponent(path)}`;
+  if (TEXT_EXT.includes(e)) {
+    const r = await api(url);
+    if (!r.ok) { pane.innerHTML = `<div class="empty">${esc(r.message)}</div>`; return; }
+    pane.innerHTML = `<div class="ceditor-head"><b>${esc(path)}</b><span class="cdirty" id="cDirty"></span>
+      <span class="spacer"></span><button class="btn small" id="cSave">Save</button>
+      <button class="btn small" id="cCode" title="Open in VS Code">VS Code</button>
+      <button class="btn small primary" id="cRun" title="Save, build, run in Dolphin">Build ▸ Run</button></div>
+      <div class="ceditor" id="cEditor"></div>`;
+    const mode = e === '.lua' ? 'lua' : ['.cpp', '.c', '.h', '.hpp', '.inl', '.glsl'].includes(e) ? 'text/x-c++src' : null;
+    C.editor = CodeMirror($('#cEditor'), {
+      value: r.text, mode, lineNumbers: true, indentUnit: 4, tabSize: 4, indentWithTabs: false, matchBrackets: true,
+      autoCloseBrackets: true, styleActiveLine: true, extraKeys: {
+        'Ctrl-S': () => saveFile(), 'Ctrl-Space': (cm) => showLuaHint(cm, true),
+        Tab: (cm) => (cm.somethingSelected() ? cm.indentSelection('add') : cm.replaceSelection('    ', 'end')),
+      },
+    });
+    C.editor.on('change', () => { if (!C.dirty) { C.dirty = true; $('#cDirty').textContent = '● not saved'; } });
+    if (e === '.lua') C.editor.on('inputRead', (cm, change) => {
+      const ch = change.text.join('');
+      if (/^[.:"\w]$/.test(ch)) showLuaHint(cm, false);
+    });
+    if (C.scroll[path]) C.editor.scrollTo(0, C.scroll[path]);
+    $('#cSave').onclick = () => saveFile();
+    $('#cCode').onclick = async () => { const x = await api('/api/open_code', { id: p.id, path }); if (!x.ok) toast(x.message); };
+    $('#cRun').onclick = async () => { if (await saveFile()) { await act('build'); C.runAfterBuild = true; } };
+    if (!quiet) C.editor.focus();
+    return;
+  }
+  const a = assetOf(path), s = sourceOf(path);
+  if (a) return renderAssetPane(path, a, url);
+  if (e === '.oct') {
+    pane.innerHTML = `<div class="cinfo"><h3>${esc(path.split('/').pop())}</h3>
+      <p>${s ? `Made by octkit from <a class="link" data-file-link="Raw/${esc(s.source)}">Raw/${esc(s.source)}</a>: change that file, or its settings, and Convert.`
+               : 'An Octave asset made in the editor (or by a script): DolphinWorks leaves it as it is.'}</p>
+      <dl class="kv"><dt>Name</dt><dd>${esc(path.split('/').pop().replace(/\.oct$/, ''))}</dd>
+      <dt>In Lua</dt><dd><code>LoadAsset("${esc(path.split('/').pop().replace(/\.oct$/, ''))}")</code></dd></dl></div>`;
+    return;
+  }
+  pane.innerHTML = `<div class="cinfo"><h3>${esc(path)}</h3><p class="muted">Not something DolphinWorks edits.</p></div>`;
+}
+
+function renderAssetPane(path, a, url) {
+  const s = a.settings, e = ext(path), pane = $('#cPane');
+  const sel = (key, options) => `<select data-set="${key}">${options.map(([v, label]) => `<option value="${v}" ${String(s[key]) === String(v) ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
+  const chk = (key) => `<input type="checkbox" data-set="${key}" ${s[key] ? 'checked' : ''}>`;
+  const num = (key, step, min, max) => `<input type="number" data-set="${key}" value="${s[key]}" step="${step}" min="${min}" max="${max}">`;
+  const preview = a.kind === 'texture' ? `<div class="cpreview"><img src="${url}&raw=1" alt=""></div>`
+    : `<div class="cpreview audio"><audio controls src="${url}&raw=1"></audio></div>`;
+  const settings = a.kind === 'texture' ? `
+      <dt>Filter</dt><dd>${sel('filter', [['linear', 'Linear (smooth)'], ['nearest', 'Nearest (pixel art)']])}</dd>
+      <dt>Wrap</dt><dd>${sel('wrap', [['repeat', 'Repeat'], ['clamp', 'Clamp'], ['mirror', 'Mirror']])}</dd>
+      <dt>Mipmaps</dt><dd><label class="check">${chk('mipmaps')} smaller copies for when it's far away (3D)</label></dd>
+      <dt>Quality</dt><dd><label class="check">${chk('force_hq')} keep full size on the console</label></dd>
+      <dt>Downsample</dt><dd>${sel('downsample', [[1, 'Full size'], [2, 'Half'], [3, 'Quarter']])}</dd>`
+    : `
+      <dt>As</dt><dd>${sel('mode', [['effect', 'Sound effect (in memory, plays instantly)'], ['music', 'Music (streamed from the disc)']])}</dd>
+      <dt>Rate</dt><dd>${sel('rate', [[11025, '11 kHz'], [22050, '22 kHz'], [32000, '32 kHz'], [44100, '44.1 kHz']])}</dd>
+      <dt>Volume</dt><dd>${num('volume', 0.05, 0, 4)}</dd>
+      ${s.mode === 'music' ? `<dt>Quality</dt><dd>${num('quality', 1, 0, 10)} <span class="muted">Vorbis 0–10</span></dd>`
+                           : `<dt>Pitch</dt><dd>${num('pitch', 0.05, 0.1, 4)}</dd><dt>Copies</dt><dd>${num('max_instances', 1, 0, 32)} <span class="muted">at once (0: any)</span></dd>`}`;
+  pane.innerHTML = `<div class="casset">
+    <div class="casset-head"><h3>${esc(path.split('/').pop())}</h3>
+      <span class="cbadge ${STATE[a.state][0]}">${STATE[a.state][1]}</span>
+      <span class="spacer"></span><button class="btn small" id="cConvertOne" ${a.state === 'ready' ? 'disabled' : ''}>Convert</button></div>
+    ${preview}
+    <dl class="kv casset-kv">
+      <dt>Asset</dt><dd><input data-set="name" value="${esc(s.name)}" spellcheck="false"></dd>
+      <dt>In Lua</dt><dd><code id="cLuaLine">LoadAsset("${esc(s.name)}")</code> <button class="btn small" id="cCopyLua">Copy</button></dd>
+      ${settings}
+      <dt>Size</dt><dd>${kb(a.source_size)} here${a.size ? ` · ${kb(a.size)} as an asset (before the console cook)` : ''}</dd>
+    </dl>
+    <p class="note">${a.kind === 'texture' ? 'The GameCube format is chosen when it builds, from the picture\'s transparency: none, cut-out, or smooth.'
+      : s.mode === 'music' ? 'Music is Vorbis, made at this quality, and streamed from the disc as it plays: it costs almost no memory.'
+      : 'A sound effect is kept as 16-bit PCM in memory, so it starts the instant it\'s played.'}</p></div>`;
+  pane.querySelectorAll('[data-set]').forEach((el) => el.onchange = async () => {
+    const key = el.dataset.set;
+    let value = el.type === 'checkbox' ? el.checked : el.value;
+    if (['downsample', 'rate', 'max_instances', 'quality'].includes(key)) value = parseInt(value, 10);
+    if (['volume', 'pitch'].includes(key)) value = parseFloat(value);
+    const r = await api('/api/asset_settings', { id: project().id, source: a.source, settings: { [key]: value } });
+    if (!r.ok) return toast(r.message);
+    await loadContent();
+  });
+  $('#cCopyLua').onclick = () => { navigator.clipboard.writeText($('#cLuaLine').textContent); toast('Copied'); };
+  $('#cConvertOne').onclick = () => $('#cConvert').click();
+}
+
+async function saveFile() {
+  if (!C.editor || !C.open) return false;
+  const r = await api('/api/save_file', { id: project().id, path: C.open, text: C.editor.getValue() });
+  if (!r.ok) { toast(r.message || 'Not saved.'); return false; }
+  C.dirty = false;
+  const d = $('#cDirty');
+  if (d) d.textContent = '';
+  toast(`Saved ${C.open.split('/').pop()}`);
+  return true;
+}
+
+// Autocomplete: Octave's API, from the installed engine. "X." a table's functions or an enum's values;
+// ":" any class's methods; LoadAsset(" the game's assets; else globals, tables and Lua's words.
+const LUA_WORDS = ['and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function', 'if', 'in', 'local', 'nil',
+  'not', 'or', 'repeat', 'return', 'then', 'true', 'until', 'while', 'self', 'print', 'pairs', 'ipairs', 'string', 'math', 'table', 'tostring', 'tonumber'];
+
+function showLuaHint(cm, forced) {
+  const A = C.api;
+  if (!A) return;
+  cm.showHint({ completeSingle: false, hint: () => {
+    const cur = cm.getCursor(), line = cm.getLine(cur.line).slice(0, cur.ch);
+    const fn = (name, info, where) => ({ text: name, displayText: `${name}(${(info.args || []).join(', ')})`, where, doc: info.doc });
+    let m, list = [], from;
+    if ((m = line.match(/(?:LoadAsset|GetAsset|AsyncLoadAsset)\(\s*"(\w*)$/))) {
+      from = CodeMirror.Pos(cur.line, cur.ch - m[1].length);
+      const names = new Set(C.data.assets.map((a) => a.asset));
+      const walk = (es) => es.forEach((e) => e.dir ? walk(e.children) : e.path.endsWith('.oct') && names.add(e.name.replace(/\.oct$/, '')));
+      walk(C.data.tree);
+      list = [...names].filter((n) => n.toLowerCase().startsWith(m[1].toLowerCase())).sort().map((n) => ({ text: n, displayText: n, where: 'asset' }));
+    } else if ((m = line.match(/([A-Za-z_]\w*)\.(\w*)$/))) {
+      from = CodeMirror.Pos(cur.line, cur.ch - m[2].length);
+      const t = A.tables[m[1]], en = A.enums[m[1]];
+      if (t) list = Object.keys(t).map((k) => fn(k, t[k], m[1]));
+      else if (en) list = en.map((k) => ({ text: k, displayText: k, where: m[1] }));
+      list = list.filter((x) => x.text.toLowerCase().startsWith(m[2].toLowerCase()));
+    } else if ((m = line.match(/:(\w*)$/))) {
+      from = CodeMirror.Pos(cur.line, cur.ch - m[1].length);
+      const seen = new Map();
+      for (const [cls, c] of Object.entries(A.classes)) for (const [k, info] of Object.entries(c.methods)) {
+        if (k.toLowerCase().startsWith(m[1].toLowerCase()) && !seen.has(k)) seen.set(k, fn(k, info, cls));
+        else if (seen.has(k)) seen.get(k).where = 'Node…';
+      }
+      list = [...seen.values()].sort((a, b) => a.text.localeCompare(b.text));
+    } else if ((m = line.match(/([A-Za-z_]\w*)$/)) && (forced || m[1].length >= 2)) {
+      from = CodeMirror.Pos(cur.line, cur.ch - m[1].length);
+      const words = [...Object.keys(A.tables).map((k) => ({ text: k, displayText: k, where: 'table' })),
+        ...Object.keys(A.enums).map((k) => ({ text: k, displayText: k, where: 'enum' })),
+        ...Object.entries(A.globals).map(([k, info]) => fn(k, info, 'global')),
+        ...LUA_WORDS.map((k) => ({ text: k, displayText: k, where: 'Lua' }))];
+      list = words.filter((x) => x.text.toLowerCase().startsWith(m[1].toLowerCase()) && x.text !== m[1]);
+    } else return null;
+    if (!list.length) return null;
+    list = list.slice(0, 80).map((x) => ({ ...x, render: (el) => {
+      el.innerHTML = `<span class="hname">${esc(x.displayText)}</span><span class="hwhere">${esc(x.where || '')}</span>`;
+      if (x.doc) el.title = x.doc;
+    } }));
+    return { list, from, to: cur };
+  } });
+}
+
+async function addFiles(files, folder) {
+  const p = project();
+  if (!p || !p.octp || !files.length) return;
+  const read = (f) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok({ name: f.name, data: r.result.split(',')[1] }); r.readAsDataURL(f); });
+  const out = [];
+  for (const f of files) out.push(await read(f));
+  const r = await api('/api/add_files', { id: p.id, folder: folder || '', files: out });
+  if (!r.ok) return toast(r.message || 'Not added.');
+  toast(`Added to Raw/${folder ? folder + '/' : ''}: ${r.added.join(', ')}. Convert (or Build) makes them assets.`);
+  C.folds['Raw'] = true;
+  await loadContent();
+}
+
+function rawFolderOf(path) {
+  // a folder in Raw/ (or a file in one): where dropped files go
+  if (!path || !path.startsWith('Raw')) return '';
+  const parts = path.split('/').slice(1);
+  if (ext(path)) parts.pop();
+  return parts.join('/');
+}
+
+function bindContent() {
+  $('#cTree').addEventListener('click', (e) => {
+    const d = e.target.closest('[data-dir]'), f = e.target.closest('[data-file]');
+    if (d) { C.folds[d.dataset.dir] = !(C.folds[d.dataset.dir] !== false); C.dropFolder = rawFolderOf(d.dataset.dir + '/'); renderTree(); }
+    else if (f) { C.dropFolder = rawFolderOf(f.dataset.file); openFile(f.dataset.file); }
+  });
+  $('#cPane').addEventListener('click', (e) => { const l = e.target.closest('[data-file-link]'); if (l) openFile(l.dataset.fileLink); });
+  $('#cConvert').onclick = async () => {
+    const p = project();
+    if (!p || !p.octp) return;
+    const r = await api('/api/convert', { id: p.id });
+    if (!r.ok) toast(r.busy ? `Busy: ${r.busy}` : 'That did not start.');
+  };
+  $('#cNewScript').onclick = async () => {
+    const p = project();
+    if (!p || !p.octp) return;
+    const name = prompt('A new Lua script (a node script: Create and Tick). Its name:', 'Player');
+    if (!name) return;
+    const r = await api('/api/new_script', { id: p.id, name: name.trim() });
+    if (!r.ok) return toast(r.message);
+    C.folds['Scripts'] = true;
+    await loadContent();
+    openFile(r.path);
+  };
+  const chooser = Object.assign(document.createElement('input'), { type: 'file', multiple: true, hidden: true });
+  document.body.append(chooser);
+  $('#cAddFiles').onclick = () => chooser.click();
+  chooser.onchange = () => { addFiles([...chooser.files], C.dropFolder); chooser.value = ''; };
+  // drop anywhere on the page
+  const page = $('#page-content'), drop = $('#cDrop');
+  let depth = 0;
+  page.addEventListener('dragenter', (e) => { if (e.dataTransfer.types.includes('Files')) { depth++; $('#cDropWhere').textContent = 'Raw/' + (C.dropFolder ? C.dropFolder + '/' : ''); drop.classList.add('show'); } });
+  page.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; drop.classList.remove('show'); } });
+  page.addEventListener('dragover', (e) => e.preventDefault());
+  page.addEventListener('drop', (e) => { e.preventDefault(); depth = 0; drop.classList.remove('show'); addFiles([...e.dataTransfer.files], C.dropFolder); });
+  window.addEventListener('beforeunload', (e) => { if (C.dirty) { e.preventDefault(); e.returnValue = ''; } });
 }
 
 // --- new project ----------------------------------------------------------------------------------
@@ -776,6 +1058,7 @@ function bind() {
     $$('.nav').forEach((x) => x.classList.toggle('active', x === b));
     $$('.page').forEach((pg) => pg.classList.toggle('active', pg.id === 'page-' + b.dataset.page));
     if (b.dataset.page === 'engine') loadEngine();
+    if (b.dataset.page === 'content') loadContent();
     placeScreen();                                   // (the game shows only on the Run page)
     geckoAuto();                                     // (opening Debug connects the Gecko)
   });
@@ -824,6 +1107,7 @@ function bind() {
   });
   $('#search').oninput = renderList;
   bindNewProject();
+  bindContent();
   $('#rescan').onclick = async () => { await api('/api/rescan', {}); await refresh(); toast(`${state.projects.length} projects`); };
   $('#dolphinVersion').onchange = async (e) => { await api('/api/settings', { dolphin: e.target.value }); await refresh(); };
   $('#toolchain').onchange = (e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };

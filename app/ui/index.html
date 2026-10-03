@@ -18,7 +18,10 @@
 <link rel="icon" href="icon.ico" sizes="any">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f1319">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/hint_show-hint.min.css">
+  <link rel="stylesheet" href="vendor/codemirror/addon/dialog_dialog.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
@@ -35,6 +38,7 @@
 <div class="main">
   <aside class="sidebar">
     <button class="nav active" data-page="projects"><svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>Projects</button>
+    <button class="nav" data-page="content"><svg viewBox="0 0 24 24"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h8.6L20 8.9V19.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5zM13 4.6V9.5h4.9zM7 12.5v1.5h10v-1.5zm0 3.5v1.5h7V16z"/></svg>Content</button>
     <button class="nav" data-page="build"><svg viewBox="0 0 24 24"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.6 5.6L3 15l3 3 6.1-6.1a4.5 4.5 0 0 0 5.6-5.6l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Build</button>
     <button class="nav" data-page="run"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>Run</button>
     <button class="nav" data-page="debug"><svg viewBox="0 0 24 24"><path d="M9 4h6v2h2.5L19 4.5l1.4 1.4L19 7.3V9h3v2h-3v2h3v2h-3v1.5A5.5 5.5 0 0 1 13.5 22h-3A5.5 5.5 0 0 1 5 16.5V15H2v-2h3v-2H2V9h3V7.3L3.6 5.9 5 4.5 6.5 6H9z"/></svg>Debug</button>
@@ -59,6 +63,23 @@
         </div>
         <div class="detail" id="detail"></div>
       </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="page" id="page-content">
+      <div class="page-head"><div><h1>Content <span class="muted" id="contentTitle"></span></h1>
+        <p>The game's code, art and sound: files in Raw/ become its assets.</p></div>
+        <div class="head-actions"><button class="btn" id="cNewScript">+ Script</button>
+          <button class="btn" id="cAddFiles">+ Add files</button>
+          <button class="btn" id="cConvert" title="Turn new and changed files in Raw/ into assets">Convert</button>
+          <button class="btn primary" data-act="build">Build</button></div></div>
+      <div class="content-grid" id="contentGrid">
+        <div class="card cfiles"><div class="cfiles-head"><b>Files</b><span class="muted" id="cRootHint"></span></div>
+          <div id="cTree" class="ctree"></div>
+          <p class="cdrop-hint">Drop PNG, WAV, OGG… anywhere here: they go into Raw/</p></div>
+        <div class="card cpane" id="cPane"><div class="empty">Choose a file.</div></div>
+      </div>
+      <div class="cdrop" id="cDrop"><div>Drop to add to <b id="cDropWhere">Raw/</b></div></div>
     </div>
 
     <!-- BUILD -->
@@ -232,6 +253,16 @@
   <span id="statusInfo"></span>
 </footer>
 <div class="toast" id="toast"></div>
-<script src="app.js"></script>
+<script src="vendor/codemirror/codemirror.min.js"></script>
+  <script src="vendor/codemirror/mode/lua_lua.min.js"></script>
+  <script src="vendor/codemirror/mode/clike_clike.min.js"></script>
+  <script src="vendor/codemirror/addon/hint_show-hint.min.js"></script>
+  <script src="vendor/codemirror/addon/edit_matchbrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/edit_closebrackets.min.js"></script>
+  <script src="vendor/codemirror/addon/selection_active-line.min.js"></script>
+  <script src="vendor/codemirror/addon/search_searchcursor.min.js"></script>
+  <script src="vendor/codemirror/addon/dialog_dialog.min.js"></script>
+  <script src="vendor/codemirror/addon/search_search.min.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

@@ -32,6 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import disc
+import luaapi
 
 HERE = Path(__file__).resolve().parent
 UI = HERE / 'ui'
@@ -447,6 +448,155 @@ def new_project(name, kind, where):
     return root / f'{name}.octp'
 
 
+# --- the Content page: a game's files, its assets (Octave's octkit) and its code -----------------------
+
+CONTENT_SKIP = {'Packaged', 'Build', 'Intermediate', 'Generated', 'Saves', '.git', '.vs', '__pycache__'}
+TEXT_FILES = {'.lua', '.cpp', '.c', '.h', '.hpp', '.inl', '.ini', '.md', '.json', '.py', '.txt', '.octp', '.glsl', '.bat'}
+MEDIA = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.bmp': 'image/bmp', '.webp': 'image/webp',
+         '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.flac': 'audio/flac'}
+LUA_API = {'key': None, 'api': None}
+
+
+def project_folder(project):
+    if not project or not project.get('octp'):
+        raise ValueError('A disc image on its own has no project files.')
+    return Path(project['octp']).parent
+
+
+def project_file(project, rel):
+    """A path inside the project folder (never outside it)."""
+    folder = project_folder(project).resolve()
+    path = (folder / str(rel)).resolve()
+    if path != folder and folder not in path.parents:
+        raise ValueError('Not in the project.')
+    return path
+
+
+def octkit(octave):
+    tool = octave / 'Tools' / 'octkit.py' if octave else None
+    return tool if tool and tool.exists() else None
+
+
+def content(project):
+    """The project's files as a tree (build output left out), and octkit's view of Raw/: each source's asset."""
+    folder = project_folder(project)
+
+    def walk(d):
+        out = []
+        for e in sorted(d.iterdir(), key=lambda e: (e.is_file(), e.name.lower())):
+            if e.name in CONTENT_SKIP or e.name.startswith('.') and e.is_dir():
+                continue
+            rel = e.relative_to(folder).as_posix()
+            if e.is_dir():
+                out.append({'name': e.name, 'path': rel, 'dir': True, 'children': walk(e)})
+            else:
+                st = e.stat()
+                out.append({'name': e.name, 'path': rel, 'size': st.st_size, 'time': st.st_mtime})
+        return out
+    tool = octkit(find_octave())
+    assets = []
+    if tool and (folder / 'Raw').is_dir():
+        try:
+            out = subprocess.run([sys.executable, str(tool), 'status', str(folder)], capture_output=True, timeout=120,
+                                 creationflags=NO_WINDOW).stdout
+            assets = json.loads(out.decode('utf-8', 'replace').strip().splitlines()[-1])
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            assets = []
+    for a in assets:
+        a['path'] = Path(a['path']).relative_to(folder).as_posix() if a.get('path') else None
+    return {'root': str(folder), 'tree': walk(folder), 'assets': assets, 'octkit': bool(tool),
+            'kind': 'cpp' if (folder / 'Makefile_GCN').exists() else 'lua'}
+
+
+def lua_api():
+    octave = find_octave()
+    folder = octave / 'Engine' / 'Source' / 'LuaBindings' if octave else None
+    key = (str(folder), max((f.stat().st_mtime for f in folder.glob('*_Lua.cpp')), default=0)) if folder and folder.is_dir() else None
+    if key and LUA_API['key'] != key:
+        LUA_API.update(key=key, api=luaapi.read_api(octave))
+    return LUA_API['api'] or {'classes': {}, 'tables': {}, 'enums': {}, 'globals': {}}
+
+
+def convert_assets(project, everything=False):
+    """octkit, for the project's Raw/: its new and changed files into Assets/. True if nothing failed."""
+    folder = project_folder(project)
+    tool = octkit(find_octave())
+    if not (folder / 'Raw').is_dir():
+        return True
+    if not tool:
+        JOBS.emit('line', text="This Octave has no octkit (Tools/octkit.py): update it (Engine page).", level='error')
+        return False
+    JOBS.emit('progress', step='converting assets')
+    startup = subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow = 0
+    proc = subprocess.Popen([sys.executable, str(tool), 'convert', str(folder)] + (['--all'] if everything else []),
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                            startupinfo=startup, creationflags=NO_WINDOW | LOW_PRIORITY)
+    result = None
+    for raw in proc.stdout:
+        try:
+            e = json.loads(raw.decode('utf-8', 'replace'))
+        except ValueError:
+            text = raw.decode('utf-8', 'replace').rstrip()
+            if text:
+                JOBS.emit('line', text=text, level=level_of(text))
+            continue
+        if e.get('kind') == 'line':
+            JOBS.emit('line', text=e['text'], level=e.get('level', 'info'))
+        elif e.get('kind') == 'done':
+            result = e
+    proc.wait()
+    if result is None:
+        JOBS.emit('line', text='octkit stopped without finishing: the lines above say why.', level='error')
+        return False
+    if result['made'] or result['failed']:
+        JOBS.emit('line', text=f'Assets: {result["made"]} converted' + (f', {result["failed"]} failed' if result['failed'] else '')
+                  + f' ({result["seconds"]} s)', level='error' if result['failed'] else 'success')
+    else:
+        JOBS.emit('line', text='Assets: up to date', level='info')
+    return not result['failed']
+
+
+def update_asset_settings(project, source, settings):
+    folder = project_folder(project)
+    path = folder / 'Raw' / 'assets.json'
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        data = {}
+    entry = data.setdefault('assets', {}).setdefault(source, {})
+    allowed = {'name', 'filter', 'wrap', 'mipmaps', 'force_hq', 'downsample', 'mode', 'rate', 'volume', 'pitch',
+               'max_instances', 'quality'}
+    for k, v in settings.items():
+        if k in allowed:
+            entry[k] = v
+    if 'name' in entry and not re.match(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$', str(entry['name'])):
+        raise ValueError('An asset name is letters, digits and _ (it names its file, and LoadAsset finds it by it).')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=1, sort_keys=True) + '\n', encoding='utf-8')
+
+
+SCRIPT_TEMPLATE = """-- {name}: a node script. Put it on a node (node:SetScriptFile("{name}.lua")): Create runs once, Tick every frame.
+{name} = {{}}
+
+function {name}:Create()
+end
+
+function {name}:Tick(deltaTime)
+end
+"""
+
+
+def find_vscode():
+    for candidate in (Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Microsoft VS Code' / 'bin' / 'code.cmd',
+                      Path(r'C:\Program Files\Microsoft VS Code\bin\code.cmd')):
+        if candidate.exists():
+            return candidate
+    found = shutil.which('code')
+    return Path(found) if found else None
+
+
 def scan_projects():
     seen, projects = set(), []
     roots = project_roots()
@@ -745,6 +895,9 @@ def build(project, options):
     JOBS.emit('line', text=f'Using toolchain: {toolchain_label(dkp)} ({dkp})', level='info')
     JOBS.emit('line', text=f'Building project: {project["title"]}', level='info')
     engine_warning()
+    if not convert_assets(project):
+        JOBS.emit('line', text='Build stopped: an asset failed to convert (above).', level='error')
+        return False
     JOBS.emit('progress', step='packaging the assets')
     start = time.time()
     try:
@@ -1179,6 +1332,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(state_payload())
         if url.path == '/api/history':
             return self.json(JOBS.history)
+        if url.path == '/api/content':
+            try:
+                return self.json({'ok': True, **content(by_id(query.get('id', [''])[0]))})
+            except (ValueError, OSError) as e:
+                return self.json({'ok': False, 'message': str(e)})
+        if url.path == '/api/luaapi':
+            return self.json(lua_api())
+        if url.path == '/api/file':
+            try:
+                path = project_file(by_id(query.get('id', [''])[0]), query.get('path', [''])[0])
+                if query.get('raw'):
+                    kind = MEDIA.get(path.suffix.lower())
+                    return self.send(200, path.read_bytes(), kind) if kind else self.send(404)
+                if path.suffix.lower() not in TEXT_FILES or path.stat().st_size > 2 * 2**20:
+                    return self.json({'ok': False, 'message': 'Not a text file DolphinWorks edits.'})
+                return self.json({'ok': True, 'text': path.read_bytes().decode('utf-8', 'replace'), 'time': path.stat().st_mtime})
+            except (ValueError, OSError) as e:
+                return self.json({'ok': False, 'message': str(e)})
         if url.path == '/api/engine':
             return self.json(engine_payload(fresh='fresh' in query))
         if url.path == '/api/gecko_history':
@@ -1309,6 +1480,58 @@ class Handler(BaseHTTPRequestHandler):
         if action == 'gecko_send':
             ok = GECKO.send(str(body.get('text', '')))
             return self.json({'ok': ok, 'message': None if ok else 'Not connected to the USB Gecko.', **GECKO.status()})
+        if action in ('save_file', 'add_files', 'asset_settings', 'new_script', 'new_folder') and project:
+            try:
+                if action == 'save_file':
+                    path = project_file(project, body.get('path', ''))
+                    if path.suffix.lower() not in TEXT_FILES:
+                        raise ValueError('Not a text file DolphinWorks edits.')
+                    text = str(body.get('text', ''))
+                    old = path.read_bytes().decode('utf-8', 'replace') if path.exists() else ''
+                    if '\r\n' in old:                      # (its line endings kept)
+                        text = text.replace('\r\n', '\n').replace('\n', '\r\n')
+                    path.write_bytes(text.encode('utf-8'))
+                    return self.json({'ok': True, 'time': path.stat().st_mtime})
+                if action == 'add_files':
+                    where = project_file(project, 'Raw/' + str(body.get('folder', '')).strip('/'))
+                    where.mkdir(parents=True, exist_ok=True)
+                    added = []
+                    for f in body.get('files', []):
+                        name = Path(str(f.get('name', ''))).name
+                        if not name or name.startswith('.'):
+                            continue
+                        (where / name).write_bytes(base64.b64decode(f.get('data', '')))
+                        added.append(name)
+                    return self.json({'ok': True, 'added': added})
+                if action == 'asset_settings':
+                    update_asset_settings(project, str(body.get('source', '')), body.get('settings') or {})
+                    return self.json({'ok': True})
+                if action == 'new_script':
+                    name = str(body.get('name', '')).strip()
+                    if not re.match(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$', name):
+                        raise ValueError('A script name is letters, digits and _ (it names its Lua class too).')
+                    path = project_file(project, f'Scripts/{name}.lua')
+                    if path.exists():
+                        raise ValueError(f'Scripts/{name}.lua is there already.')
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(SCRIPT_TEMPLATE.format(name=name), newline='\n')
+                    return self.json({'ok': True, 'path': f'Scripts/{name}.lua'})
+                if action == 'new_folder':
+                    path = project_file(project, body.get('path', ''))
+                    path.mkdir(parents=True, exist_ok=True)
+                    return self.json({'ok': True})
+            except (ValueError, OSError) as e:
+                return self.json({'ok': False, 'message': str(e)})
+        if action == 'convert' and project:
+            return self.json({'ok': JOBS.start(f'Convert {project["title"]}\'s assets',
+                                               lambda: convert_assets(project, bool(body.get('all')))), 'busy': JOBS.busy})
+        if action == 'open_code' and project:
+            code = find_vscode()
+            if not code:
+                return self.json({'ok': False, 'message': 'No VS Code found: install it (code.visualstudio.com), or edit here.'})
+            target = project_file(project, body.get('path', '')) if body.get('path') else project_folder(project)
+            launch(['cmd', '/c', str(code), str(project_folder(project)), str(target)], cwd=project_folder(project))
+            return self.json({'ok': True})
         if action == 'new_project':
             try:
                 octp = new_project(str(body.get('name', '')).strip(), body.get('kind'), body.get('where') or str(DEFAULT_ROOTS[0]))
