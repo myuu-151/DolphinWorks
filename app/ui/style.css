@@ -23,7 +23,9 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
-  background: radial-gradient(1100px 520px at 18% -12%, #192433 0%, var(--bg) 60%) fixed;
+  /* behind the panels: the same fall-off as theirs (lighter at the top, dipping darker), a glow at the top left */
+  background: radial-gradient(1100px 520px at 18% -12%, #192433 0%, transparent 60%) fixed,
+    linear-gradient(180deg, #141a23, #090c10) fixed;
   color: var(--text);
   font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
   display: flex; flex-direction: column; overflow: hidden;
