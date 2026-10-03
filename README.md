@@ -53,6 +53,17 @@ opens in an Edge window instead.
   title, maker and description), and the memory card's icon, banner, title and description. Click one to
   change it, or a picture to replace it. Edits go into the disc image, and into an Octave project's own files
   (opening.bnr, SaveInfo.lua, save_icon.bin) so the next build keeps them.
+- **Games made in code, no editor needed:**
+  - **New project:** a Lua or C++ game from Octave's Template, ready to build ("Hello, GameCube!").
+  - **Content page:** the game's files as a tree, its code in an editor that completes Octave's Lua API (read
+    from the installed engine), and its art, sound, models, videos and fonts: drop them in and every Build turns
+    them into Octave assets (Octave's `octkit`, and its own importer for videos and fonts), each with its
+    settings and a preview. A project's own `build.py` runs on every Build too. Open in IDE opens Cursor,
+    VS Code or Visual Studio, set up with Octave's headers and API.
+- **Engine page:** Octave-libogc's version against its newest release (Update), what's built and what's stale,
+  and building it with its own builder; Open editor.
+- **Memory card info:** Generate makes it for a game that saves (Octave applies Scripts/SaveInfo.lua at startup);
+  animated icons from several pictures, a GIF or a strip.
 
 ### Hardware tests
 
