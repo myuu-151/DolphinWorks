@@ -57,7 +57,7 @@ function renderList() {
   const list = state.projects.filter((p) => !q || p.title.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
   $('#projectList').innerHTML = list.map((p) => `
     <div class="pitem ${p.id === selected ? 'active' : ''}" data-id="${p.id}">
-      ${p.banner ? `<div class="pthumb" style="background-image:url('${image(p, 'banner')}')"></div>`
+      ${p.icon || p.banner ? `<div class="pthumb${p.icon ? ' icon' : ''}" style="background-image:url('${image(p, p.icon ? 'icon' : 'banner')}')"></div>`
                  : `<div class="pthumb">${esc(p.title[0] || '?')}</div>`}
       <div style="min-width:0"><div class="ptitle">${esc(p.title)}</div>
         <div class="pmeta">${p.folder ? esc(p.folder) : 'GameCube · ISO · ' + (!p.octp ? 'Disc image' : p.engine.includes('custom') ? 'Custom code' : 'Octave Engine')}</div></div>

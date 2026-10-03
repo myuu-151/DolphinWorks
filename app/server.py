@@ -325,7 +325,10 @@ def scan_disc_images(roots, projects):
                     'id': '', 'name': iso.stem, 'title': title, 'octp': None, 'kind': 'disc',
                     'root': str(iso.parent), 'iso': str(iso), 'built': True,
                     'last_build': time.strftime('%Y-%m-%d %H:%M', time.localtime(stat.st_mtime)),
-                    'size_mb': round(stat.st_size / 2**20, 1), 'banner': None, 'screenshot': None,
+                    'size_mb': round(stat.st_size / 2**20, 1), 'screenshot': None,
+                    # its pictures, if it has them beside it: banner.png (the art up top), icon.png (the list's)
+                    'banner': str(iso.parent / 'banner.png') if (iso.parent / 'banner.png').exists() else None,
+                    'icon': str(iso.parent / 'icon.png') if (iso.parent / 'icon.png').exists() else None,
                     'builder': None, 'engine': 'Disc image', 'modified': stat.st_mtime,
                     'elf': str(iso.with_suffix('.elf')) if iso.with_suffix('.elf').exists() else None,
                 })
@@ -874,7 +877,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.events()
         if url.path == '/api/image':
             project = by_id(query.get('id', [''])[0])
-            path = project and project.get(query.get('kind', ['banner'])[0])
+            kind = query.get('kind', ['banner'])[0]
+            path = project and kind in ('banner', 'screenshot', 'icon') and project.get(kind)   # (pictures only)
             if path and Path(path).exists():
                 return self.send(200, Path(path).read_bytes(), TYPES.get(Path(path).suffix.lower(), 'image/png'))
             return self.send(404)
