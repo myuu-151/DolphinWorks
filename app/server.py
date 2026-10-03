@@ -535,7 +535,11 @@ def start_gdb(project):
     GECKO.disconnect(f'Disconnected: GDB has {port} now')
     start_apart([str(gdb), '-q', '-ex', f'directory {(elf.parent / "source").as_posix()}',   # (forward slashes: GDB eats backslashes)
                       '-ex', 'set remotetimeout 10',
-                      '-ex', rf'target remote \\.\{port}', str(elf)], elf.parent, 0x00000010)                    # CREATE_NEW_CONSOLE: its own window
+                      '-ex', rf'target remote \\.\{port}',
+                      # (a reminder of the usual commands, as DolphinWorks' Debug page lists them)
+                      '-ex', r'echo \nCommands: continue (c) | Ctrl+C pauses | bt | break <function> | print <variable> | '
+                             r'next | step | finish | info locals | quit\n',
+                      str(elf)], elf.parent, 0x00000010)                    # CREATE_NEW_CONSOLE: its own window
     JOBS.emit('line', text=f'GDB on {port}: {elf.name}', level='info')
     return {'ok': True, 'message': f'GDB started on {port}', **GECKO.status()}
 SOURCE_LINE = re.compile(r'^\s*[\w.+-]+\.(?:cpp|c)$')

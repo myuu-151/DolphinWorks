@@ -247,6 +247,11 @@ a.fix { color: #8fb5ff; }
 .gdb-card { overflow-y: auto; min-height: 0; }
 .gdb-card code { font-family: Consolas, monospace; color: #bfe0c8; }
 .gdb-card .gdb-for { margin: 6px 0 14px; font-size: 12.5px; overflow-wrap: anywhere; }
+.gdb-card .gdb-head { margin: 4px 0 8px; font-size: 14px; font-weight: 600; }
+.gdb-cmds { margin: 0 0 14px; font-size: 12.5px; }
+.gdb-cmds dt { font-family: Consolas, "Cascadia Mono", monospace; color: #bfe0c8; margin-top: 6px; }
+.gdb-cmds dd { margin: 1px 0 0; color: var(--muted); }
+.gdb-cmds dd b { font-family: Consolas, monospace; font-weight: 400; color: #bfe0c8; }
 .log .error { color: var(--err); }
 .log .warning { color: var(--warn); }
 .log .success { color: var(--ok); font-weight: 600; }

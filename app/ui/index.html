@@ -119,6 +119,22 @@
             must be running and built with libogc's debug stub (<code>DEBUG_Init</code>).</p>
           <button class="btn primary wide" id="startGdb">▶ Start GDB</button>
           <p class="muted gdb-for" id="gdbFor"></p>
+          <h3 class="gdb-head">Commands</h3>
+          <dl class="gdb-cmds">
+            <dt>continue</dt><dd>run the game (<b>c</b>)</dd>
+            <dt>Ctrl+C</dt><dd>pause it, wherever it is</dd>
+            <dt>bt</dt><dd>where it stopped: the calls that led there</dd>
+            <dt>break player_update</dt><dd>stop at a function (or <b>break file.cpp:120</b>)</dd>
+            <dt>print hp</dt><dd>a variable's value (<b>p/x hp</b> in hex)</dd>
+            <dt>printf "%d\n", hp</dt><dd>formatted, as in C</dd>
+            <dt>info locals</dt><dd>this function's variables</dd>
+            <dt>next / step</dt><dd>one line; <b>step</b> goes into calls</dd>
+            <dt>finish</dt><dd>run to the end of this function</dd>
+            <dt>set var hp = 999</dt><dd>change a variable</dd>
+            <dt>x/16x 0x80001234</dt><dd>16 words of memory</dd>
+            <dt>delete</dt><dd>remove all breakpoints</dd>
+            <dt>quit</dt><dd>leave GDB</dd>
+          </dl>
           <p class="muted">It opens in its own window, connected to the Gecko (the console lets go of the port).
             By hand:</p>
           <pre class="code" id="gdbHow">powerpc-eabi-gdb.exe game.elf
