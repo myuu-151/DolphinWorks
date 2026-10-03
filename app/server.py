@@ -516,6 +516,90 @@ if os.environ.get('DOLPHINWORKS_MUTE'):              # (tests: no sound)
 
 # --- the HTTP side -------------------------------------------------------------------------------
 
+# --- what else a GameCube project needs (the Packages page) ----------------------------------------
+
+def python_package(name):
+    """A Python package's version, in the Python the builders use (this one), or None."""
+    try:
+        from importlib.metadata import version
+        return version(name)
+    except Exception:
+        return None
+
+
+def visual_studio():
+    """(name, folder) of a Visual Studio with the C++ tools, or None."""
+    vswhere = Path(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)')) / 'Microsoft Visual Studio' / 'Installer' / 'vswhere.exe'
+    if not vswhere.exists():
+        return None
+    try:
+        out = subprocess.run([str(vswhere), '-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+                              '-format', 'json'], capture_output=True, text=True, timeout=15, creationflags=NO_WINDOW).stdout
+        found = json.loads(out or '[]')
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if not found:
+        return None
+    vs = found[0]
+    return vs.get('displayName', 'Visual Studio'), vs.get('installationPath', '')
+
+
+def vulkan_sdk():
+    """(version, folder) of the Vulkan SDK, or None: its VULKAN_SDK variable (as saved, too: the app may have
+    started before it was set), else the newest in C:\\VulkanSDK."""
+    folder = os.environ.get('VULKAN_SDK')
+    if not folder:
+        try:
+            import winreg
+            for root, key in ((winreg.HKEY_CURRENT_USER, 'Environment'),
+                              (winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment')):
+                try:
+                    with winreg.OpenKey(root, key) as k:
+                        folder = winreg.QueryValueEx(k, 'VULKAN_SDK')[0]
+                        break
+                except OSError:
+                    pass
+        except ImportError:
+            pass
+    if not folder:
+        versions = sorted(Path(r'C:\VulkanSDK').glob('*/Include/vulkan')) if Path(r'C:\VulkanSDK').is_dir() else []
+        folder = str(versions[-1].parent.parent) if versions else None
+    if not folder or not Path(folder).is_dir():
+        return None
+    return Path(folder).name, folder
+
+
+def ftdi_driver():
+    """The FTDI serial driver (the USB Gecko's): its file, or None."""
+    sys_file = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'drivers' / 'ftdibus.sys'
+    return str(sys_file) if sys_file.exists() else None
+
+
+PACKAGES_CACHE = {}
+
+
+def other_packages():
+    """Python and the rest, checked once a minute at most (Visual Studio's check takes a moment)."""
+    if time.time() - PACKAGES_CACHE.get('at', 0) > 60:
+        vs, vk = visual_studio(), vulkan_sdk()
+        pil, np = python_package('pillow'), python_package('numpy')
+        PACKAGES_CACHE.update(at=time.time(), list=[
+            {'name': 'Python 3', 'group': 'required', 'ok': True, 'where': f'{sys.version.split()[0]}: {Path(sys.executable).parent}',
+             'purpose': 'The app and the builders'},
+            {'name': 'Pillow', 'group': 'required', 'ok': bool(pil), 'where': pil or '', 'purpose': "Making the games' assets",
+             'fix': 'py -m pip install pillow'},
+            {'name': 'numpy', 'group': 'required', 'ok': bool(np), 'where': np or '', 'purpose': "Making the games' assets",
+             'fix': 'py -m pip install numpy'},
+            {'name': 'Visual Studio (C++)', 'group': 'optional', 'ok': bool(vs), 'where': ': '.join(vs) if vs else '',
+             'purpose': 'Building the engine from source', 'link': 'https://visualstudio.microsoft.com/'},
+            {'name': 'Vulkan SDK', 'group': 'optional', 'ok': bool(vk), 'where': ': '.join(vk) if vk else '',
+             'purpose': 'Building the engine from source', 'link': 'https://vulkan.lunarg.com/sdk/home#windows'},
+            {'name': 'USB Gecko driver (FTDI)', 'group': 'optional', 'ok': bool(ftdi_driver()), 'where': ftdi_driver() or '',
+             'purpose': 'The USB Gecko as a COM port', 'link': 'https://ftdichip.com/drivers/vcp-drivers/'},
+        ])
+    return PACKAGES_CACHE['list']
+
+
 def state_payload():
     toolchains = find_toolchains()
     chosen = chosen_toolchain()
@@ -524,6 +608,7 @@ def state_payload():
     st = load_state()
     return {
         'version': VERSION,
+        'packages': other_packages(),
         'projects': PROJECTS,
         'custom_paths': {kind: bool(st.get(kind)) for kind in PATHS},
         'project_roots': [{'path': str(p), 'default': p in DEFAULT_ROOTS, 'exists': p.is_dir()} for p in project_roots()],

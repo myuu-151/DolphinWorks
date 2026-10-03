@@ -135,12 +135,27 @@ function renderPages() {
   if (b2) b2.onclick = () => $('#moreOptions').click();
   $$('.profile').forEach((el) => el.classList.toggle('active', el.dataset.profile === state.profile));
   $('#geckoBig').innerHTML = state.gecko ? `<p class="ok">● Connected on ${esc(state.gecko)}</p>` : '<p class="bad">○ Not connected</p>';
-  const row = (name, ok, where) => `<tr><td>${name}</td><td>${ok ? '<span class="ok">● Installed</span>' : '<span class="bad">○ Missing</span>'}</td><td class="muted">${esc(where || '')}</td></tr>`;
-  $('#packagesCard').innerHTML = `<table class="table"><tr><th>Package</th><th>Status</th><th>Where</th></tr>
-    ${row('GameCube toolchain', state.toolchains.length, state.toolchains.map((t) => t.label).join(', '))}
-    ${row('Engine (Octave-libogc)', state.octave, state.octave)}
-    ${row('Emulator (Dolphin)', state.dolphin, state.dolphin && `${state.dolphin.version}: ${state.dolphin.path}`)}
-    </table>`;
+  // the packages: what every project needs, then what only some work needs (missing is fine there)
+  const row = (p) => {
+    const status = p.ok ? '<span class="ok">● Installed</span>'
+      : p.group === 'optional' ? '<span class="muted">○ Not installed</span>' : '<span class="err">○ Missing</span>';
+    const fix = p.ok ? '' : p.fix ? `<code class="fix">${esc(p.fix)}</code>`
+      : p.link ? `<a class="fix" href="${esc(p.link)}" target="_blank">Get it</a>` : '';
+    return `<tr><td>${esc(p.name)}<div class="purpose">${esc(p.purpose || '')}</div></td><td>${status}</td>
+      <td class="muted">${esc(p.where || '')}${fix}</td></tr>`;
+  };
+  const ours = [
+    { name: 'GameCube toolchain', ok: state.toolchains.length, where: state.toolchains.map((t) => t.label).join(', '),
+      purpose: 'Compiling and linking for the GameCube' },
+    { name: 'Engine (Octave-libogc)', ok: state.octave, where: state.octave && `${state.octave_version || ''}: ${state.octave}`,
+      purpose: 'Building the games' },
+    { name: 'Emulator (Dolphin)', ok: state.dolphin, where: state.dolphin && `${state.dolphin.version}: ${state.dolphin.path}`,
+      purpose: 'Running them on PC' },
+  ];
+  const others = state.packages || [];
+  const table = (rows) => `<table class="table packages"><tr><th>Package</th><th>Status</th><th>Where</th></tr>${rows.map(row).join('')}</table>`;
+  $('#packagesCard').innerHTML = `<h2>Required</h2>${table(ours.concat(others.filter((p) => p.group === 'required')))}
+    <h2 class="later">Optional</h2>${table(others.filter((p) => p.group === 'optional'))}`;
   $('#settingsCard').innerHTML = `<table class="table">
     <tr><th>Projects</th><td>
       <div class="roots">${(state.project_roots || []).map((r) => `<div class="root">
