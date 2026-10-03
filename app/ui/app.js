@@ -390,7 +390,11 @@ function renderPages() {
         <span class="muted">${state.projects.length} projects found</span></div></td></tr>
     ${pathRow('Toolchain', 'toolchain', state.toolchain)}
     ${pathRow('Engine', 'octave', state.octave)}
-    ${pathRow('Dolphin', 'dolphin', state.dolphin && state.dolphin.path)}</table>
+    ${pathRow('Dolphin', 'dolphin', state.dolphin && state.dolphin.path)}
+    <tr><th>Code editor</th><td><select id="ideSelect" class="ide-select">
+      <option value="auto" ${state.ide === 'auto' ? 'selected' : ''}>Automatic (${esc(['VS Code', 'Cursor', 'Visual Studio'].find((n) => (state.ides || []).includes(n)) || 'none found')})</option>
+      ${['Cursor', 'VS Code', 'Visual Studio'].map((n) => `<option value="${n}" ${state.ide === n ? 'selected' : ''} ${(state.ides || []).includes(n) ? '' : 'disabled'}>${n}${(state.ides || []).includes(n) ? '' : ' (not installed)'}</option>`).join('')}
+      </select><div class="purpose">What the Content page's Open in IDE opens (Cursor and VS Code get Octave's Lua API too)</div></td></tr></table>
     <p class="muted">DolphinWorks ${esc(state.version)}</p>`;
   $('#topStatus').innerHTML = [
     ['Toolchain', state.toolchains.length], ['Engine', state.octave], ['Dolphin', state.dolphin], ['USB Gecko', state.gecko],
@@ -1290,6 +1294,13 @@ function bind() {
   document.body.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (b && !b.disabled) act(b.dataset.act);
+  });
+  // Settings: which code editor Open in IDE opens
+  $('#settingsCard').addEventListener('change', async (e) => {
+    if (e.target.id !== 'ideSelect') return;
+    state.ide = e.target.value;
+    await api('/api/settings', { ide: state.ide });
+    toast(state.ide === 'auto' ? 'Code editor: automatic' : `Code editor: ${state.ide}`);
   });
   // Settings: the folders searched for projects
   $('#settingsCard').addEventListener('click', async (e) => {

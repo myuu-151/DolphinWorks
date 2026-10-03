@@ -721,6 +721,24 @@ def write_code_settings(project):
     settings_file.write_text(json.dumps(settings, indent=2) + '\n')
 
 
+def find_cursor():
+    """Cursor (an editor built on VS Code): its command-line launcher, or None."""
+    candidate = Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'cursor' / 'resources' / 'app' / 'bin' / 'cursor.cmd'
+    if candidate.exists():
+        return candidate
+    found = shutil.which('cursor')
+    return Path(found) if found else None
+
+
+IDES = ('Cursor', 'VS Code', 'Visual Studio')
+
+
+def find_ides():
+    """{name: its launcher} of the code editors installed."""
+    found = {'Cursor': find_cursor(), 'VS Code': find_vscode(), 'Visual Studio': find_visual_studio()}
+    return {k: v for k, v in found.items() if v}
+
+
 def find_vscode():
     for candidate in (Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Microsoft VS Code' / 'bin' / 'code.cmd',
                       Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Microsoft VS Code' / 'bin' / 'code.cmd'):
@@ -1391,7 +1409,7 @@ def other_packages():
     """Python and the rest, checked once a minute at most (Visual Studio's check takes a moment)."""
     if time.time() - PACKAGES_CACHE.get('at', 0) > 60:
         vs, vk, ftdi = visual_studio(), vulkan_sdk(), ftdi_driver()
-        blender, vscode = find_blender(), find_vscode()
+        blender, vscode, cursor = find_blender(), find_vscode(), find_cursor()
         pil, np = python_package('pillow'), python_package('numpy')
         PACKAGES_CACHE.update(at=time.time(), list=[
             {'name': 'Python 3', 'group': 'required', 'ok': True, 'where': f'{sys.version.split()[0]}: {Path(sys.executable).parent}',
@@ -1409,6 +1427,8 @@ def other_packages():
             {'name': 'VS Code', 'group': 'optional', 'ok': bool(vscode), 'where': str(vscode.parents[1]) if vscode else '',
              'purpose': 'Editing code with Lua autocomplete (else Visual Studio, or the Content page)',
              'link': 'https://code.visualstudio.com/'},
+            {'name': 'Cursor', 'group': 'optional', 'ok': bool(cursor), 'where': str(cursor.parents[3]) if cursor else '',
+             'purpose': 'Editing code with Lua autocomplete (VS Code based; Settings: Code editor)', 'link': 'https://cursor.com/'},
             {'name': 'USB Gecko driver (FTDI)', 'group': 'optional', 'ok': ftdi[0], 'where': ftdi[1],
              'purpose': 'The USB Gecko as a COM port', 'link': 'https://ftdichip.com/drivers/vcp-drivers/'},
         ])
@@ -1439,6 +1459,8 @@ def state_payload():
         'build_type': st.get('build_type', 'Release'),
         'sd_log': st.get('sd_log', False),
         'gecko_log': st.get('gecko_log', False),
+        'ide': st.get('ide', 'auto'),
+        'ides': list(find_ides()),
         'gecko': usb_gecko(),
         'sd_cards': sd_cards(),
         'sd_card': st.get('sd_card'),
@@ -1545,7 +1567,7 @@ class Handler(BaseHTTPRequestHandler):
         project = by_id(body.get('id'))
         if action == 'settings':
             save_state(**{k: v for k, v in body.items() if k in
-                          ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'gecko_log', 'sd_card', 'selected')})
+                          ('toolchain', 'dolphin', 'profile', 'build_type', 'sd_log', 'gecko_log', 'sd_card', 'selected', 'ide')})
             return self.json({'ok': True})
         if action == 'gdb' and project:
             return self.json(start_gdb(project))
@@ -1717,15 +1739,20 @@ class Handler(BaseHTTPRequestHandler):
             folder = project_folder(project)
             target = project_file(project, body.get('path', '')) if body.get('path') else None
             write_code_settings(project)
-            code, devenv = find_vscode(), find_visual_studio()
-            if code:
-                launch(['cmd', '/c', str(code), str(folder)] + ([str(target)] if target else []), cwd=folder)
-                return self.json({'ok': True, 'editor': 'VS Code'})
+            ides = find_ides()
+            chosen = load_state().get('ide', 'auto')
+            # the one chosen in Settings, else VS Code or Cursor (they take Octave's Lua API), else Visual Studio
+            order = [chosen] if chosen in ides else ['VS Code', 'Cursor', 'Visual Studio']
+            name = next((n for n in order if n in ides), None)
+            if name in ('VS Code', 'Cursor'):
+                launch(['cmd', '/c', str(ides[name]), str(folder)] + ([str(target)] if target else []), cwd=folder)
+                return self.json({'ok': True, 'editor': name})
+            devenv = ides.get('Visual Studio') if name == 'Visual Studio' else None
             if devenv:
                 # a file: into Visual Studio (the open one, if there is); the folder: Open Folder, with IntelliSense
                 launch([str(devenv), '/Edit', str(target)] if target else [str(devenv), str(folder)], cwd=folder)
                 return self.json({'ok': True, 'editor': 'Visual Studio'})
-            return self.json({'ok': False, 'message': 'No VS Code or Visual Studio found: edit it here, or install one.'})
+            return self.json({'ok': False, 'message': 'No VS Code, Cursor or Visual Studio found: edit it here, or install one.'})
         if action == 'new_build_py' and project:
             path = project_folder(project) / 'build.py'
             if path.exists():
