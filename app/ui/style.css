@@ -40,7 +40,9 @@ svg { fill: currentColor; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 14px; }
-.logo { width: 84px; height: 84px; }
+.brand-text { position: relative; margin-left: 30px; }
+/* the dolphin leaps over the D's top-left corner */
+.logo { position: absolute; width: 58px; height: 58px; left: -40px; top: -27px; pointer-events: none; }
 .brand-name { font-size: 34px; font-weight: 600; letter-spacing: .5px; line-height: 1.05;
   background: linear-gradient(180deg, #b9dcff, #5aa2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .brand-sub { font-size: 13px; letter-spacing: 3.5px; color: #c9d6ee; margin-top: 4px; }
