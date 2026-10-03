@@ -112,7 +112,7 @@ function renderRight() {
   $('#dolphinVersion').disabled = !state.dolphins.length;
   $('#dolphinVersion').title = state.dolphin ? state.dolphin.path
     + (state.dolphin.profiles ? '' : '\nNo Fast/Accurate profiles: dolphinworks.bat installs a Dolphin with them') : '';
-  $('#gecko').innerHTML = state.gecko ? `<span class="ok">● Detected</span> <span class="muted">${esc(state.gecko)}</span>` : '<span class="bad">○ Not connected</span>';
+  $('#gecko').innerHTML = state.gecko ? `<span class="ok" title="USB Gecko detected on ${esc(state.gecko)}">● ${esc(state.gecko)}</span>` : '<span class="bad">○ Not connected</span>';
   const sd = state.sd_cards.map((c) => `<option value="${c.drive}" ${c.drive === state.sd_card ? 'selected' : ''}>${c.drive}\\ ${esc(c.label)} (${c.free_gb} GB free)</option>`).join('')
     || '<option value="">No SD card</option>';
   $('#sdSelect').innerHTML = sd;

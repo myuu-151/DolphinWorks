@@ -141,14 +141,14 @@ svg { fill: currentColor; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .btn.icon { padding: 4px 9px; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
-.right { margin: 14px 14px 10px 0; padding: 14px 16px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }   /* (its scrollbar's room kept: nothing goes under it) */
-.right h3 { margin: 6px 0 12px; font-size: 16px; font-weight: 600; }
-.right h3:not(:first-child) { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
-.field { display: grid; grid-template-columns: 86px minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 9px; }
+.right { margin: 14px 14px 10px 0; padding: 10px 16px 12px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }   /* (its scrollbar's room kept: nothing goes under it) */
+.right h3 { margin: 2px 0 10px; font-size: 16px; font-weight: 600; }
+.right h3:not(:first-child) { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.field { display: grid; grid-template-columns: 86px minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 7px; }
 .field select { min-width: 0; text-overflow: ellipsis; }   /* (a narrow panel: a long value ends in ..., the arrow stays in view) */
 .field:has(> :nth-child(3)) { grid-template-columns: 86px minmax(0, 1fr) auto; }
 .field label { color: var(--muted); font-size: 13.5px; }
-.field .value { font-size: 13.5px; }
+.field .value { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* (e.g. "Detected COM3": one line) */
 /* fields (drop-downs, search): a flat inset, a step darker than the panel */
 select { width: 100%; padding: 7px 30px 7px 12px; border-radius: 6px; border: 1px solid var(--line2); background: #10141b; }
 /* our own arrow, set in from the right edge (Windows' sits against it), the text kept clear of it */
@@ -157,6 +157,8 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 select option { background: #10141b; }
 select:disabled { opacity: .7; }
 .check { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13.5px; cursor: pointer; }
+.right .check { margin: 5px 0; }
+.right .btn.wide { margin-top: 6px; }
 .check input { width: 17px; height: 17px; accent-color: var(--blue2); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .row2 .btn { white-space: nowrap; padding: 7px 8px; }
