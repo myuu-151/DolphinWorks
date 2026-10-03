@@ -1004,6 +1004,15 @@ class Handler(BaseHTTPRequestHandler):
             save_state(names=names)
             PROJECTS = scan_projects()
             return self.json({'ok': True})
+        if action == 'generate_card' and project and project['octp']:
+            try:
+                made = disc.generate_save_info(Path(project['octp']).parent, (project['bnr'] or {}).get('title') or project['title'],
+                                               'Saved game', project['bnr'])
+            except (ValueError, OSError) as e:
+                return self.json({'ok': False, 'message': str(e)})
+            JOBS.emit('line', text=f'Made {made}: the memory card info, applied by Octave at startup', level='info')
+            PROJECTS = scan_projects()
+            return self.json({'ok': True})
         if action in ('disc_text', 'picture') and project:
             if JOBS.busy:
                 return self.json({'ok': False, 'message': 'Wait for the build to finish.'})

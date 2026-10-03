@@ -138,6 +138,7 @@ svg { fill: currentColor; }
 .note { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
 .note .link { color: #6fa3f7; cursor: pointer; margin-left: 4px; }
 .note .link:hover { text-decoration: underline; }
+.gen-row { display: block; margin-top: 10px; }
 /* the disc's and the save's pictures: their real pixels, 3 to 1 */
 .pic { position: relative; display: block; flex: none; padding: 0; border: 1px solid var(--line2); border-radius: 6px; cursor: pointer;
   background: #0b0e13 center/100% 100% no-repeat; image-rendering: pixelated; overflow: hidden; color: inherit; font: inherit; }

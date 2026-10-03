@@ -135,8 +135,10 @@ function discCards(p) {
       : `<p class="note">${octave ? 'No banner yet: the build gives the disc Octave\'s.' : 'This disc has no banner (no opening.bnr).'}</p>`}</div>`;
   // (always there: when nothing is found, why)
   let card = `<div class="subcard wide"><h3>Memory Card</h3><p class="note">${octave
-    ? 'No save info found: the game sets none (System.SetSaveInfo, in Scripts/SaveInfo.lua), so its saves show bare.'
-    : 'Nothing to show: this disc doesn\'t carry a save icon or banner as files (save_icon.bin, save_banner.bin). A game that doesn\'t save has none.'}</p></div>`;
+    ? `No save info yet: the game's saves show bare on the memory card screen. Generate makes it (Scripts/SaveInfo.lua: an icon and
+       banner from the disc banner, the title), which Octave applies at startup; then edit it here.
+       <span class="gen-row"><button class="btn" data-gen>Generate</button></span>`
+    : 'Nothing to show: this disc doesn\'t carry a save icon or banner as files (save_icon.bin, save_banner.bin). A game that doesn\'t save has none, and one can\'t be added without its project.'}</p></div>`;
   if (c) {
     const frames = c.icon ? Math.max(1, c.icon.frames) : 0;
     const onDisc = (c.icon && c.icon.on_disc) || (c.banner && c.banner.on_disc);
@@ -252,6 +254,15 @@ function bindDiscCards() {
   document.body.append(chooser);
   chooser.onchange = () => { if (chooser.files.length) replacePicture(chooser.dataset.which, chooser.files); chooser.value = ''; };
   $('#detail').addEventListener('click', (e) => {
+    if (e.target.closest('[data-gen]')) {
+      const p = project();
+      api('/api/generate_card', { id: p.id }).then(async (r) => {
+        artV++;
+        await refresh();
+        toast(r.ok ? 'Memory card info made: Scripts/SaveInfo.lua. Edit it here; Build puts it in the game.' : r.message || 'That did not work.');
+      });
+      return;
+    }
     const pic = e.target.closest('.pic');
     if (pic) {
       chooser.dataset.which = pic.dataset.pic;

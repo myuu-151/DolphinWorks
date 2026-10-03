@@ -504,6 +504,39 @@ def make_animated(card):
     return fix[0]
 
 
+def generate_save_info(folder, title, description, bnr=None):
+    """Makes an Octave project's Scripts/SaveInfo.lua -- what the memory card screen shows beside its saves --
+    from its disc banner (the banner as it is; the icon, the banner's middle 32 x 32) or else a plain one.
+    Octave's EngineStartup.lua hands it to the engine, so the game needs no code for it. Returns the file."""
+    path = Path(folder) / 'Scripts' / 'SaveInfo.lua'
+    if path.exists():
+        raise ValueError(f'{path} is there already.')
+    px = None
+    if bnr:
+        with open(bnr['path'], 'rb') as f:
+            f.seek(bnr['offset'] + 0x20)
+            px = _decode_rgb5a3(f.read(96 * 32 * 2), 96, 32)
+    if px is None:                                 # (no banner: the app's dark blue, plain)
+        px = [(20, 26, 36, 255)] * (96 * 32)
+    banner = bytes(c for p in px for c in p)
+    icon = bytes(c for y in range(32) for x in range(32, 64) for c in px[y * 96 + x])
+    clean = lambda v: ''.join(c for c in ' '.join(str(v).split()) if c not in '"\\')[:CARD_TEXT].strip()
+    hex_lines = lambda data: ''.join(f'        "{data.hex()[i:i + 128]}",\n' for i in range(0, len(data) * 2, 128))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes((
+        '-- What the memory card screen shows beside the game\'s saves (made by DolphinWorks; edit it there).\n'
+        '-- Octave hands it to the engine at startup (EngineStartup.lua): System.SetSaveInfo\'s formats.\n'
+        'SaveInfo = {\n'
+        f'    title = "{clean(title)}",\n'
+        f'    description = "{clean(description)}",\n'
+        '    -- 32 x 32, still: RGB5A3 (GX\'s 4 x 4 tiles), as hex\n'
+        '    icon = table.concat({\n' + hex_lines(encode_rgb5a3(icon, 32, 32)) + '    }),\n'
+        '    -- 96 x 32, CI8 in GX\'s 8 x 4 tiles, then its 256-colour RGB5A3 palette, as hex\n'
+        '    banner = table.concat({\n' + hex_lines(encode_ci8([banner], 96, 32)) + '    }),\n'
+        '}\n').encode('utf-8'))
+    return str(path)
+
+
 def make_bnr(path, start_from=None, default=None):
     """A project's own opening.bnr, made from the disc's banner (what it shows now) or else Octave's default.
     Octave's build puts a project's opening.bnr on the disc as it is."""
