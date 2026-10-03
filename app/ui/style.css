@@ -92,8 +92,8 @@ svg { fill: currentColor; }
 .ptitle { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pmeta { color: var(--muted); font-size: 12.5px; }
 
-.detail { padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
-.banner { flex: none; height: 168px; border-radius: 8px; border: 1px solid var(--line2);
+.detail { padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; }
+.banner { flex: none; height: 156px; border-radius: 8px; border: 1px solid var(--line2);
   background: var(--art, none) center/contain no-repeat, linear-gradient(180deg, #101318, #0b0e13); }
 .dtitle { display: flex; align-items: flex-start; gap: 10px; }
 .dtitle h2 { margin: 0; font-size: 24px; font-weight: 600; }
@@ -105,14 +105,14 @@ svg { fill: currentColor; }
 .dtitle .btn { margin-left: auto; }
 .tags { display: flex; gap: 8px; flex-wrap: wrap; }
 .tag { padding: 3px 12px; border-radius: 6px; background: #172238; border: 1px solid #2f4570; color: #cfdcf5; font-size: 13px; }
-.actions { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.actions { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .detail { container-type: inline-size; }
 @container (max-width: 640px) { .actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.action { min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255,.08);
+.action { min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255,.08);
   cursor: pointer; text-align: left; color: #ffffff; transition: filter .15s, transform .05s; }
 .action:hover { filter: brightness(1.15); }
 .action:active { transform: translateY(1px); }
-.action svg { width: 30px; height: 30px; flex: none; }
+.action svg { width: 28px; height: 28px; flex: none; }
 .action b { display: block; font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .action span { font-size: 11.5px; opacity: .8; white-space: nowrap; }
 .action.blue { background: linear-gradient(180deg, #2f72e6, #2457b8); }
@@ -120,7 +120,7 @@ svg { fill: currentColor; }
 .action.purple { background: linear-gradient(180deg, #4b3c95, #3a2e78); }
 .action.gray { background: linear-gradient(180deg, #2c3542, #1c242e); }
 .action[disabled] { opacity: .45; pointer-events: none; }
-.info-row { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.info-row { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }   /* (below the fold in a full window: not peeking under the buttons) */
 .subcard { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: linear-gradient(180deg, #161b23, #101319); }
 .subcard h3 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
 .kv { display: grid; grid-template-columns: 96px 1fr; row-gap: 6px; font-size: 13.5px; }
