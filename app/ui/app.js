@@ -214,7 +214,7 @@ function listen() {
 async function act(name) {
   const p = project();
   const body = { id: p && p.id, profile: state.profile, build_type: state.build_type, sd_log: state.sd_log,
-                 drive: $('#sdSelect').value || null };
+                 drive: $('#sdSelect').value || null, embed: !!host };
   if (name === 'build' || name === 'deploy') $('#log').innerHTML = '';
   const res = await api('/api/' + name, body);
   if (!res.ok) toast(res.message || (res.busy ? `Busy: ${res.busy}` : 'That did not work.'));

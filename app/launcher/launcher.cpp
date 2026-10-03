@@ -44,6 +44,18 @@ static void tell_page(const wchar_t *type, DWORD pid)
     }
 }
 
+// a window's size when shown normally (a minimized one's too: Dolphin's starts minimized, see server.py)
+static bool normal_rect(HWND window, RECT *r)
+{
+    if (!IsIconic(window))
+        return GetWindowRect(window, r) != 0;
+    WINDOWPLACEMENT place = { sizeof(place) };
+    if (!GetWindowPlacement(window, &place))
+        return false;
+    *r = place.rcNormalPosition;
+    return true;
+}
+
 // the biggest visible top-level window of the process: its game window (a dialog would be smaller)
 static HWND find_game_window(DWORD pid)
 {
@@ -53,7 +65,7 @@ static HWND find_game_window(DWORD pid)
         DWORD owner = 0;
         GetWindowThreadProcessId(window, &owner);
         RECT r;
-        if (owner == s->pid && IsWindowVisible(window) && !GetWindow(window, GW_OWNER) && GetWindowRect(window, &r))
+        if (owner == s->pid && IsWindowVisible(window) && !GetWindow(window, GW_OWNER) && normal_rect(window, &r))
         {
             LONG area = (r.right - r.left) * (r.bottom - r.top);
             if ((r.right - r.left) > 200 && (r.bottom - r.top) > 150 && area > s->area)
@@ -85,6 +97,8 @@ static void take_in(HWND window)
     LONG ex = GetWindowLongW(window, GWL_EXSTYLE);
     SetWindowLongW(window, GWL_EXSTYLE, ex & ~(WS_EX_APPWINDOW | WS_EX_WINDOWEDGE | WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE));
     SetParent(window, main_window);
+    if (IsIconic(window))                          // (it started minimized: restored, now that it's inside)
+        ShowWindow(window, SW_RESTORE);
     game.window = window;
     place_game();
 }
@@ -105,12 +119,30 @@ static void let_go()
     game.window = NULL;
 }
 
+static HWINEVENTHOOK show_hook;
+
 static void forget_game()
 {
+    if (show_hook)
+        UnhookWinEvent(show_hook), show_hook = NULL;
     if (game.process)
         CloseHandle(game.process);
     game = {};
     KillTimer(main_window, 1);
+}
+
+// Windows tells us the moment a window of the game's Dolphin is shown: its game window is taken in
+// at once, before it's been on screen as a window of its own (rather than at the next 100 ms check)
+static void CALLBACK on_window_shown(HWINEVENTHOOK, DWORD, HWND window, LONG object, LONG child, DWORD, DWORD)
+{
+    if (object != OBJID_WINDOW || child != CHILDID_SELF || !game.pid || game.window)
+        return;
+    RECT r;
+    if (GetAncestor(window, GA_PARENT) != GetDesktopWindow() || GetWindow(window, GW_OWNER) || !normal_rect(window, &r)
+        || r.right - r.left <= 200 || r.bottom - r.top <= 150)
+        return;
+    take_in(window);
+    tell_page(L"shown", game.pid);
 }
 
 // asks Dolphin to stop (closing its game window ends a batch-mode Dolphin); ends it if it won't
@@ -167,7 +199,10 @@ static void on_page_message(const std::wstring &json)
             forget_game();
             game.pid = pid;
             game.process = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE, pid);
-            SetTimer(main_window, 1, 100, NULL);
+            show_hook = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, NULL, on_window_shown, pid, 0,
+                                        WINEVENT_OUTOFCONTEXT);
+            SetTimer(main_window, 1, 100, NULL);   // (and a check for its end, or a window the hook missed)
+            watch_game();                          // (it may already be showing)
         }
         LONG x = field(json, L"x"), y = field(json, L"y");
         game.place = { x, y, x + field(json, L"w"), y + field(json, L"h") };

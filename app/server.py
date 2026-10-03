@@ -494,8 +494,15 @@ def deploy(project, drive):
     return True
 
 
-def launch(args, cwd=None):
-    return subprocess.Popen(args, cwd=cwd, creationflags=0x00000008)   # DETACHED_PROCESS
+def launch(args, cwd=None, minimized=False):
+    startup = None
+    if minimized:
+        # its first window opens minimized: a game run from the app shows only once DolphinWorks.exe has
+        # taken its window in (it would sit on the desktop meanwhile, while Dolphin starts the game)
+        startup = subprocess.STARTUPINFO()
+        startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startup.wShowWindow = 7                                     # SW_SHOWMINNOACTIVE
+    return subprocess.Popen(args, cwd=cwd, creationflags=0x00000008, startupinfo=startup)   # DETACHED_PROCESS
 
 
 # a game run from the app: no "stop the emulation?" question (the app's Stop, or closing the app, ends
@@ -659,7 +666,7 @@ class Handler(BaseHTTPRequestHandler):
             args = [str(dolphin / 'Dolphin.exe')]
             if profiles:
                 args += ['-u', str(dolphin / ('User-Accurate' if body.get('profile') == 'Accurate' else 'User'))]
-            proc = launch(args + RUN_CONFIG + ['-b', '-e', project['iso']], cwd=dolphin)
+            proc = launch(args + RUN_CONFIG + ['-b', '-e', project['iso']], cwd=dolphin, minimized=bool(body.get('embed')))
             JOBS.emit('line', text=f'Running {project["title"]} in Dolphin ({body.get("profile", "Fast")})', level='info')
             return self.json({'ok': True, 'pid': proc.pid, 'title': project['title']})
         if action == 'dolphin':
