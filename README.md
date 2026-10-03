@@ -8,7 +8,7 @@ An open-source development suite for Nintendo GameCube
 |---|---|---|
 | **[Octave-libogc](https://github.com/myuu-151/Octave-Libogc)**<br>Engine | 3D game engine with a scene editor and Lua scripting. Packages projects as bootable GameCube disc images. | Download the latest release, or build from source with `Build Octave.bat`. |
 | **[gekko-toolchain](https://github.com/myuu-151/gekko-toolchain)**<br>Toolchain | Cross-compiler, linker and GameCube libraries: devkitPro's toolchain, distributed as a single archive (unofficial). | Extract the latest release and run `Install.bat`. |
-| **[Dolphin](https://dolphin-emu.org)**<br>Emulator | GameCube and Wii emulator for running and debugging builds on PC, with a log window, memory viewer and graphics debugger. Third-party: not part of DolphinWorks. | Download the latest release from [dolphin-emu.org](https://dolphin-emu.org/download/). |
+| **[Dolphin](https://dolphin-emu.org)**<br>Emulator | GameCube and Wii emulator for running and debugging builds on PC, with a log window, memory viewer and graphics debugger. 
 
 ## Requirements
 
