@@ -1,0 +1,11 @@
+{
+  "name": "DolphinWorks",
+  "short_name": "DolphinWorks",
+  "display": "standalone",
+  "background_color": "#08111f",
+  "theme_color": "#0f1f3b",
+  "icons": [
+    { "src": "icon-256.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
