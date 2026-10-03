@@ -160,6 +160,7 @@ select:disabled { opacity: .7; }
 .right .check { margin: 6px 0; }
 .right .btn.wide { margin-top: 8px; }
 .check input { width: 17px; height: 17px; accent-color: var(--blue2); }
+.check:has(input:disabled) { opacity: .45; cursor: default; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .row2 .btn { white-space: nowrap; padding: 7px 8px; }
 .ok { color: var(--ok); }

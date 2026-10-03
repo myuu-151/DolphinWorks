@@ -601,12 +601,13 @@ def build(project, options):
     env['DEVKITPRO'], env['DEVKITPPC'] = msys(dkp), msys(dkp / 'devkitPPC')
     env['OCTAVE'] = octave.as_posix()
     env['SDLOG'] = '1' if options.get('sd_log') else ''
-    env['GECKOLOG'] = '1' if options.get('gecko_log') else ''
+    env['GDB'] = '1' if options.get('build_type') == 'Debug (GDB)' else ''          # (the debug stub: waits for GDB)
+    env['GECKOLOG'] = '1' if options.get('gecko_log') and not env['GDB'] else ''    # (GDB has the Gecko to itself)
     env['DIAG'] = '1' if options.get('build_type') == 'Diagnostic' else ''
     # They're compile flags, and make can't tell when they change: switched since this project's last
     # build (or unknown), its compiled code is made again -- its Intermediate/GCN cleared, as a whole
     # (deleting some of what's in it, the .d files say, left stale objects that crashed a game).
-    flags = ' '.join(f'{k}={env[k]}' for k in ('SDLOG', 'GECKOLOG', 'DIAG'))
+    flags = ' '.join(f'{k}={env[k]}' for k in ('SDLOG', 'GECKOLOG', 'DIAG', 'GDB'))
     built_with = load_state().get('build_flags', {})
     if built_with.get(project['octp']) != flags:
         intermediate = Path(project['octp']).parent / 'Intermediate' / 'GCN'
@@ -628,6 +629,9 @@ def build(project, options):
         return False
     save_state(build_flags={**load_state().get('build_flags', {}), project['octp']: flags})
     JOBS.emit('line', text='Build successful!', level='success')
+    if env['GDB']:
+        JOBS.emit('line', text='A Debug (GDB) build: on the console it waits at its start, the screen black, for GDB '
+                                '(Debug page: Start GDB, then "continue").', level='info')
     JOBS.emit('line', text=f'Output: {iso} ({iso.stat().st_size / 2**20:.1f} MB)', level='success')
     JOBS.emit('line', text=f'Total time: {time.time() - start:.1f}s', level='info')
     rescan()                                         # (the new build's date and size, before "done")

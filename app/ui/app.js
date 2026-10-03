@@ -102,6 +102,10 @@ function renderRight() {
   $('#buildType').value = state.build_type;
   $('#sdLog').checked = !!state.sd_log;
   $('#geckoLog').checked = !!state.gecko_log;
+  // a Debug (GDB) build: GDB has the Gecko to itself, no log on it
+  $('#geckoLog').disabled = state.build_type === 'Debug (GDB)';
+  $('#geckoLog').closest('label').title = state.build_type === 'Debug (GDB)' ? 'Not in a Debug (GDB) build: GDB has the Gecko to itself'
+    : 'The log, live over a USB Gecko: watch it on the Debug page';
   $('#profile').value = state.profile;
   // every Dolphin found: its version, and where it is when two share one
   const versions = state.dolphins.map((d) => d.version);
@@ -127,7 +131,8 @@ function renderPages() {
   $('#buildCard').innerHTML = p ? `
     <h2>${esc(p.title)}</h2>
     <table class="table"><tr><th>Toolchain</th><td>${esc((state.toolchains.find((t) => t.path === state.toolchain) || {}).label || 'none')}</td></tr>
-      <tr><th>Build type</th><td>${esc(state.build_type)}${state.build_type === 'Diagnostic' ? ' (memory census, flicker detector; slower)' : ''}</td></tr>
+      <tr><th>Build type</th><td>${esc(state.build_type)}${state.build_type === 'Diagnostic' ? ' (memory census, flicker detector; slower)'
+        : state.build_type === 'Debug (GDB)' ? ' (the debug stub: on the console it waits at its start for GDB, Debug page)' : ''}</td></tr>
       <tr><th>SD log</th><td>${state.sd_log ? 'on: the game writes its log to the SD card' : 'off'}</td></tr>
       <tr><th>Gecko log</th><td>${state.gecko_log ? 'on: the log, live over the USB Gecko (the Debug page)' : 'off'}</td></tr>
       <tr><th>Engine</th><td>${esc(state.octave || 'not installed')}</td></tr>
@@ -459,7 +464,7 @@ function bind() {
   $('#rescan').onclick = async () => { await api('/api/rescan', {}); await refresh(); toast(`${state.projects.length} projects`); };
   $('#dolphinVersion').onchange = async (e) => { await api('/api/settings', { dolphin: e.target.value }); await refresh(); };
   $('#toolchain').onchange = (e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };
-  $('#buildType').onchange = (e) => { state.build_type = e.target.value; api('/api/settings', { build_type: state.build_type }); renderPages(); };
+  $('#buildType').onchange = (e) => { state.build_type = e.target.value; api('/api/settings', { build_type: state.build_type }); renderRight(); renderPages(); };
   $('#sdLog').onchange = (e) => { state.sd_log = e.target.checked; api('/api/settings', { sd_log: state.sd_log }); renderPages(); };
   $('#geckoLog').onchange = (e) => { state.gecko_log = e.target.checked; api('/api/settings', { gecko_log: state.gecko_log }); renderPages(); };
   $('#profile').onchange = (e) => { state.profile = e.target.value; api('/api/settings', { profile: state.profile }); render(); };
