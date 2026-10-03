@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DolphinWorks</title>
+<link rel="icon" href="logo.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <img src="logo.svg" alt="" class="logo">
+    <div>
+      <div class="brand-name">DolphinWorks</div>
+      <div class="brand-sub">GAMECUBE DEVELOPMENT SUITE</div>
+    </div>
+  </div>
+  <nav class="flow"><span>DEVELOP</span><i>▸</i><span>BUILD</span><i>▸</i><span>PLAY</span></nav>
+  <div class="top-status" id="topStatus"></div>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <button class="nav active" data-page="projects"><svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>Projects</button>
+    <button class="nav" data-page="build"><svg viewBox="0 0 24 24"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.6 5.6L3 15l3 3 6.1-6.1a4.5 4.5 0 0 0 5.6-5.6l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Build</button>
+    <button class="nav" data-page="run"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z"/></svg>Run</button>
+    <button class="nav" data-page="debug"><svg viewBox="0 0 24 24"><path d="M9 4h6v2h2.5L19 4.5l1.4 1.4L19 7.3V9h3v2h-3v2h3v2h-3v1.5A5.5 5.5 0 0 1 13.5 22h-3A5.5 5.5 0 0 1 5 16.5V15H2v-2h3v-2H2V9h3V7.3L3.6 5.9 5 4.5 6.5 6H9z"/></svg>Debug</button>
+    <button class="nav" data-page="packages"><svg viewBox="0 0 24 24"><path d="M12 2 3 6.5v11L12 22l9-4.5v-11zm0 2.2 6.5 3.3L12 10.8 5.5 7.5zM5 9.2l6 3v7.4l-6-3zm8 10.4v-7.4l6-3v7.4z"/></svg>Packages</button>
+    <button class="nav" data-page="settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1l.3 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>Settings</button>
+    <div class="sidebar-foot">IDEAS<br>INTO<br>GAMES</div>
+  </aside>
+
+  <section class="content">
+    <!-- PROJECTS -->
+    <div class="page active" id="page-projects">
+      <div class="page-head">
+        <svg viewBox="0 0 24 24" class="page-icon"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>
+        <div><h1>Projects</h1><p>Manage your games and development projects.</p></div>
+        <button class="btn primary" id="rescan">⟳ Rescan</button>
+      </div>
+      <div class="projects">
+        <div class="list-panel">
+          <input id="search" placeholder="Search projects..." autocomplete="off">
+          <div id="projectList" class="project-list"></div>
+        </div>
+        <div class="detail" id="detail"></div>
+      </div>
+    </div>
+
+    <!-- BUILD -->
+    <div class="page" id="page-build">
+      <div class="page-head"><div><h1>Build</h1><p>Build the selected project with the toolchain and options on the right.</p></div></div>
+      <div class="card" id="buildCard"></div>
+    </div>
+
+    <!-- RUN -->
+    <div class="page" id="page-run">
+      <div class="page-head"><div><h1>Run</h1><p>Play the disc image in Dolphin, or copy it to an SD card for a GameCube.</p></div></div>
+      <div class="grid2">
+        <div class="card"><h2>Dolphin</h2>
+          <div class="profile-cards">
+            <div class="profile" data-profile="Fast"><b>Fast</b><span>Everyday testing: dual core, the disc at full speed.</span></div>
+            <div class="profile" data-profile="Accurate"><b>Accurate</b><span>As close to the console as Dolphin goes: single core, the CPU cache, real disc timing. Several times slower.</span></div>
+          </div>
+          <button class="btn green wide" data-act="run">▶ Run in Dolphin</button>
+        </div>
+        <div class="card"><h2>GameCube</h2>
+          <p class="muted">Copy the disc image to an SD card, then boot it with Swiss.</p>
+          <div class="field"><label>SD card</label><select id="sdSelect2"></select></div>
+          <button class="btn purple wide" data-act="deploy">⇪ Deploy to SD card</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEBUG -->
+    <div class="page" id="page-debug">
+      <div class="page-head"><div><h1>Debug</h1><p>Live logs and GDB through a USB Gecko, on hardware or in Dolphin.</p></div></div>
+      <div class="grid2">
+        <div class="card"><h2>USB Gecko</h2><div id="geckoBig"></div>
+          <p class="muted">Plug it into memory card slot A. In Dolphin, DolphinWorks' profiles emulate one in slot B.</p></div>
+        <div class="card"><h2>GDB</h2>
+          <p class="muted">Build with libogc's debug stub, then connect:</p>
+          <pre class="code">powerpc-eabi-gdb.exe game.elf
+(gdb) target remote \\.\COM5</pre>
+          <p class="muted soon">Coming next: a live log console and one-click GDB here.</p></div>
+      </div>
+    </div>
+
+    <!-- PACKAGES -->
+    <div class="page" id="page-packages">
+      <div class="page-head"><div><h1>Packages</h1><p>What DolphinWorks uses, and where it is.</p></div>
+        <button class="btn primary" data-act="setup">⤓ Install or update</button></div>
+      <div class="card" id="packagesCard"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="page-head"><div><h1>Settings</h1><p>Paths and choices, saved between sessions.</p></div></div>
+      <div class="card" id="settingsCard"></div>
+    </div>
+
+    <!-- LOG -->
+    <div class="log-panel">
+      <div class="log-head">
+        <span class="log-title">▤ Build Log</span>
+        <span class="log-progress" id="progress"></span>
+        <select id="logFilter"><option value="all">All output</option><option value="important">Errors and results</option></select>
+        <button class="btn small" id="clearLog">⊘ Clear</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <aside class="right">
+    <h3>Quick Settings</h3>
+    <div class="field"><label>Toolchain</label><select id="toolchain"></select></div>
+    <div class="field"><label>Build Type</label><select id="buildType"><option>Release</option><option>Diagnostic</option></select></div>
+    <div class="field"><label>Target</label><select disabled><option>GameCube disc</option></select></div>
+    <label class="check"><input type="checkbox" id="sdLog"> Enable SD log output</label>
+    <button class="btn wide" id="moreOptions">⚙ More Build Options...</button>
+
+    <h3>Dolphin</h3>
+    <div class="field"><label>Version</label><div class="value" id="dolphinVersion">-</div></div>
+    <div class="field"><label>Profile</label><select id="profile"><option>Fast</option><option>Accurate</option></select></div>
+    <div class="row2"><button class="btn" data-act="dolphin">⚙ Configure</button><button class="btn" data-act="dolphin">⧉ Open</button></div>
+
+    <h3>Hardware</h3>
+    <div class="field"><label>USB Gecko</label><div class="value" id="gecko">-</div><button class="btn icon" id="refreshHw" title="Refresh">⟳</button></div>
+    <div class="field"><label>SD Card</label><select id="sdSelect"></select></div>
+    <button class="btn wide" data-act="deploy">⇪ Deploy to SD Card</button>
+  </aside>
+</div>
+
+<footer class="statusbar">
+  <span class="dot" id="statusDot"></span><span id="statusText">Ready</span>
+  <span class="sep">|</span><span id="statusProject"></span>
+  <span class="grow"></span>
+  <span id="statusInfo"></span>
+</footer>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

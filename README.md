@@ -33,6 +33,16 @@ An open-source development suite for Nintendo GameCube
 Run the setup again at any time to update to the latest releases. To install the parts by hand
 instead, see each component's repository.
 
+### The DolphinWorks app (prototype)
+
+`app\DolphinWorks.bat` opens the development hub: every Octave project on this PC, each with
+**Build**, **Run in Dolphin** (Fast or Accurate), **Run on Hardware** (copies the disc image to an
+SD card for Swiss) and **Open in Editor**; the toolchain switch and build options; the USB Gecko
+and SD cards as they're plugged in; and the build log, live. It needs nothing but Python and
+Windows' Edge, and runs in a window of its own.
+
+![The DolphinWorks app](docs/app.png)
+
 ## Running a build
 
 | Target | Method |
