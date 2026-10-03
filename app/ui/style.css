@@ -137,31 +137,18 @@ svg { fill: currentColor; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .btn.icon { padding: 4px 9px; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
-.right { margin: 14px 14px 10px 0; padding: 12px 14px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; justify-content: space-between; }
-.right > * { flex: none; }
-.right h3 { margin: 2px 0 10px; font-size: 15px; font-weight: 600; }
-/* spare height is shared evenly between every row, so the panel fills without big gaps */
-.right > .divider { height: 20px; position: relative; }
-.divider::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
-.right .check { margin: 0; }
-.field { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
-.field:has(> :nth-child(3)) { grid-template-columns: 82px 1fr auto; }
-.box .muted { margin-left: 6px; }
-.right select, .right .box { height: 32px; padding: 0 10px; font-size: 13px; }
-.right .btn { height: 32px; padding: 0 10px; font-size: 13px; }
-.right .btn.wide { margin-top: 6px; }
-.right .btn.icon { width: 32px; padding: 0; }
-.stack { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.stack label { color: var(--muted); font-size: 13px; }
-.box { display: flex; align-items: center; border-radius: 6px; border: 1px solid var(--line2); background: #0f141c; }
-.field label { color: var(--muted); font-size: 13px; }
-.field .value { font-size: 13px; }
+.right { margin: 14px 14px 10px 0; padding: 14px 16px; overflow-y: auto; }
+.right h3 { margin: 6px 0 12px; font-size: 16px; font-weight: 600; }
+.right h3:not(:first-child) { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.field { display: grid; grid-template-columns: 86px 1fr auto; align-items: center; gap: 8px; margin-bottom: 9px; }
+.field label { color: var(--muted); font-size: 13.5px; }
+.field .value { font-size: 13.5px; }
 select { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line2); background: #0f141c; }
 select:disabled { opacity: .7; }
-.check { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; cursor: pointer; }
+.check { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13.5px; cursor: pointer; }
 .check input { width: 17px; height: 17px; accent-color: var(--blue2); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.row2 .btn { white-space: nowrap; }
+.row2 .btn { white-space: nowrap; padding: 7px 8px; }
 .ok { color: var(--ok); }
 .bad { color: var(--muted); }
 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--ok); }
