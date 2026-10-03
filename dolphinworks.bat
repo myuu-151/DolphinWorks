@@ -9,7 +9,7 @@ choice /m "Install Python 3 now (winget)"
 if errorlevel 2 goto manual
 winget install -e --id Python.Python.3.13 --accept-package-agreements --accept-source-agreements
 echo.
-echo Python is installed. Run "gcsuite.bat" again.
+echo Python is installed. Run "dolphinworks.bat" again.
 pause
 exit /b
 :manual

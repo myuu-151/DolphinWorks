@@ -1,6 +1,6 @@
 """DolphinWorks Setup: everything needed to make GameCube games, installed in one window.
 
-    Double-click "gcsuite.bat" (or: python tools/setup.py)
+    Double-click "dolphinworks.bat" (or: python tools/setup.py)
 
 Into one folder (C:\\DolphinWorks unless another is chosen), each part a tick box:
 

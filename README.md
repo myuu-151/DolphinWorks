@@ -22,7 +22,7 @@ An open-source development suite for Nintendo GameCube
 
 ## Getting started
 
-1. **Run `gcsuite.bat`.** It installs everything into one folder (`C:\DolphinWorks` by default):
+1. **Run `dolphinworks.bat`.** It installs everything into one folder (`C:\DolphinWorks` by default):
    the Python packages, the toolchain (unless devkitPro or gekko-toolchain is already installed)
    and the engine. If Python isn't installed, it offers to install it first.
 2. **Build a project:** open the Octave editor from the setup window, create a project and
