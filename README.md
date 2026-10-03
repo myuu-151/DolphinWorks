@@ -39,8 +39,9 @@ instead, see each component's repository.
 added in Settings, each with
 **Build**, **Run in Dolphin** (Fast or Accurate), **Run on Hardware** (copies the disc image to an
 SD card for Swiss) and **Open in Editor**; the toolchain switch and build options; the USB Gecko
-and SD cards as they're plugged in; and the build log, live. It needs nothing but Python and
-Windows' Edge, and runs in a window of its own.
+and SD cards as they're plugged in; and the build log, live. It's an app of its own: its own window and
+taskbar button (WebView2, built into Windows 11), with nothing to install but Python. Without WebView2 it
+opens in an Edge window instead.
 
 ![The DolphinWorks app](docs/app.png)
 

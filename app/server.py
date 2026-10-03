@@ -6,8 +6,9 @@ A local web app in its own window: this file serves the interface (app/ui) on 12
 the work behind it -- finding the projects (every Octave project, .octp, under C:\\DolphinWorks\\Projects
 and the folders added in Settings), building them with Octave (the toolchain chosen, devkitPro's or
 gekko-toolchain), running the disc image in Dolphin (Fast or Accurate), opening the editor,
-copying the disc image to an SD card, and watching for a USB Gecko and SD cards. The window is
-Microsoft Edge in app mode, with a profile of its own; closing it stops the app.
+copying the disc image to an SD card, and watching for a USB Gecko and SD cards. DolphinWorks.exe
+runs it with --no-window and shows it in its own window (WebView2), ending it when that closes; run
+directly, it opens Microsoft Edge in app mode, with a profile of its own, and closing that stops it.
 
 Only Python's standard library: nothing to install.
 """
