@@ -175,7 +175,8 @@ function renderStatus() {
   $('#statusText').textContent = state.busy ? state.busy + '...' : 'Ready';
   $('#statusProject').textContent = p ? '› ' + p.title : '';
   const t = state.toolchains.find((x) => x.path === state.toolchain);
-  $('#statusInfo').textContent = `DolphinWorks ${state.version}  |  ${t ? t.label : 'no toolchain'}  |  Octave engine`;
+  $('#statusInfo').textContent = `DolphinWorks ${state.version}  |  ${t ? t.label : 'no toolchain'}  |  Octave engine`
+    + `  |  ${state.dolphin ? 'Dolphin ' + state.dolphin.version : 'no Dolphin'}`;
 }
 
 // --- log -----------------------------------------------------------------------------------------
@@ -265,7 +266,7 @@ function bind() {
   $('#search').oninput = renderList;
   $('#rescan').onclick = async () => { await api('/api/rescan', {}); await refresh(); toast(`${state.projects.length} projects`); };
   $('#dolphinVersion').onchange = async (e) => { await api('/api/settings', { dolphin: e.target.value }); await refresh(); };
-  $('#toolchain').onchange =(e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };
+  $('#toolchain').onchange = (e) => { api('/api/settings', { toolchain: e.target.value }); state.toolchain = e.target.value; renderStatus(); renderPages(); };
   $('#buildType').onchange = (e) => { state.build_type = e.target.value; api('/api/settings', { build_type: state.build_type }); renderPages(); };
   $('#sdLog').onchange = (e) => { state.sd_log = e.target.checked; api('/api/settings', { sd_log: state.sd_log }); renderPages(); };
   $('#profile').onchange = (e) => { state.profile = e.target.value; api('/api/settings', { profile: state.profile }); render(); };
