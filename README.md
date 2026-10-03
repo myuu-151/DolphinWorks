@@ -1,4 +1,4 @@
-# GC Suite
+# DolphinWorks
 
 An open-source development suite for Nintendo GameCube
 
