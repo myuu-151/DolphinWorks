@@ -80,7 +80,7 @@ svg { fill: currentColor; }
   background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--line); border-radius: 10px;
 }
 .list-panel { display: flex; flex-direction: column; min-height: 0; padding: 10px; gap: 8px; }
-#search { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line2); background: linear-gradient(180deg, #0e1218, #0c0f14); outline: none; }
+#search { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line2); background: #0f141c; outline: none; }
 #search:focus { border-color: var(--blue2); }
 .project-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
 .pitem { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
@@ -148,8 +148,9 @@ svg { fill: currentColor; }
 .field:has(> :nth-child(3)) { grid-template-columns: 86px 1fr auto; }
 .field label { color: var(--muted); font-size: 13.5px; }
 .field .value { font-size: 13.5px; }
-select { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line2); background: linear-gradient(180deg, #0e1218, #0c0f14); }
-select option { background: #0e1218; }
+/* fields (drop-downs, search): a flat inset, a step darker than the panel */
+select { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line2); background: #0f141c; }
+select option { background: #0f141c; }
 select:disabled { opacity: .7; }
 .check { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13.5px; cursor: pointer; }
 .check input { width: 17px; height: 17px; accent-color: var(--blue2); }
