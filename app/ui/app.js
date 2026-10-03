@@ -133,7 +133,10 @@ function discCards(p) {
                                           : 'From the project\'s opening.bnr: its builds put it on the disc.')
                                : 'Saved in the disc image.'}</p>`
       : `<p class="note">${octave ? 'No banner yet: the build gives the disc Octave\'s.' : 'This disc has no banner (no opening.bnr).'}</p>`}</div>`;
-  let card = '';
+  // (always there: when nothing is found, why)
+  let card = `<div class="subcard wide"><h3>Memory Card</h3><p class="note">${octave
+    ? 'No save info found: the game sets none (System.SetSaveInfo, in Scripts/SaveInfo.lua), so its saves show bare.'
+    : 'Nothing to show: this disc doesn\'t carry a save icon or banner as files (save_icon.bin, save_banner.bin). A game that doesn\'t save has none.'}</p></div>`;
   if (c) {
     const frames = c.icon ? Math.max(1, c.icon.frames) : 0;
     const onDisc = (c.icon && c.icon.on_disc) || (c.banner && c.banner.on_disc);
