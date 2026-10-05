@@ -9,6 +9,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <wrl.h>
+#include <cstdio>
 #include <string>
 #include "WebView2.h"
 
@@ -281,6 +282,47 @@ static bool start_server(const std::wstring &dir)
 
 // --- the window ----------------------------------------------------------------------------------
 
+static std::wstring page_data_dir;                 // the browser's own files (show_page)
+static const UINT WM_APP_REMAKE = WM_APP + 1;      // WebView2's browser process went: make the view again
+static void show_page(HWND window, const std::wstring &data_dir);
+
+// A failure of one of WebView2's processes, noted in failures.txt in the browser's folder: when, which
+// process, and why, as WebView2 says.
+static void note_failure(ICoreWebView2ProcessFailedEventArgs *args, COREWEBVIEW2_PROCESS_FAILED_KIND kind)
+{
+    COREWEBVIEW2_PROCESS_FAILED_REASON reason = COREWEBVIEW2_PROCESS_FAILED_REASON_UNEXPECTED;
+    int exit_code = 0;
+    ComPtr<ICoreWebView2ProcessFailedEventArgs2> args2;
+    if (SUCCEEDED(args->QueryInterface(IID_PPV_ARGS(&args2))))
+    {
+        args2->get_Reason(&reason);
+        args2->get_ExitCode(&exit_code);
+    }
+    SYSTEMTIME now;
+    GetLocalTime(&now);
+    FILE *file = NULL;
+    if (_wfopen_s(&file, (page_data_dir + L"\\failures.txt").c_str(), L"a") == 0 && file)
+    {
+        fprintf(file, "%04d-%02d-%02d %02d:%02d:%02d  process kind %d, reason %d, exit code 0x%08x\n", now.wYear,
+                now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, (int)kind, (int)reason, (unsigned)exit_code);
+        fclose(file);
+    }
+}
+
+// At most 5 reloads a minute: a page that keeps failing at once stays as it is rather than loop.
+static bool may_reload()
+{
+    static ULONGLONG since = 0;
+    static int count = 0;
+    ULONGLONG now = GetTickCount64();
+    if (now - since > 60000)
+    {
+        since = now;
+        count = 0;
+    }
+    return ++count <= 5;
+}
+
 static void fit(HWND window)
 {
     if (controller)
@@ -303,6 +345,13 @@ static LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LP
         return 0;
     case WM_TIMER:
         watch_game();
+        return 0;
+    case WM_APP_REMAKE:
+        if (controller)
+            controller->Close();
+        controller.Reset();
+        webview.Reset();
+        show_page(window, page_data_dir);
         return 0;
     case WM_CLOSE:
         stop_game(3000);                           // the game ends with the app, cleanly if it can
@@ -367,6 +416,34 @@ static void show_page(HWND window, const std::wstring &data_dir)
                                         {
                                             on_page_message(json);
                                             CoTaskMemFree(json);
+                                        }
+                                        return S_OK;
+                                    }).Get(), NULL);
+
+                            // One of WebView2's processes failing under the page (out of memory, a graphics
+                            // reset) left the window blank while the server ran on. The page is loaded again
+                            // instead (it gets its logs back from the server); if the browser process itself
+                            // went, the view is made again.
+                            webview->add_ProcessFailed(
+                                Callback<ICoreWebView2ProcessFailedEventHandler>(
+                                    [window](ICoreWebView2 *sender, ICoreWebView2ProcessFailedEventArgs *args) -> HRESULT {
+                                        COREWEBVIEW2_PROCESS_FAILED_KIND kind;
+                                        if (FAILED(args->get_ProcessFailedKind(&kind)))
+                                            return S_OK;
+                                        note_failure(args, kind);
+                                        switch (kind)
+                                        {
+                                        case COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED:
+                                            PostMessageW(window, WM_APP_REMAKE, 0, 0);
+                                            break;
+                                        case COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED:
+                                        case COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE:
+                                        case COREWEBVIEW2_PROCESS_FAILED_KIND_GPU_PROCESS_EXITED:
+                                            if (may_reload())
+                                                sender->Reload();
+                                            break;
+                                        default:
+                                            break;
                                         }
                                         return S_OK;
                                     }).Get(), NULL);
@@ -464,6 +541,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int show)
         data_dir = std::wstring(local) + L"\\DolphinWorks";
         CoTaskMemFree(local);
     }
+    page_data_dir = data_dir;
     show_page(window, data_dir);
 
     MSG message;
