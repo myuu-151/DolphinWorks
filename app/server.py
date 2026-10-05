@@ -40,7 +40,7 @@ STATE = HERE / '.state.json'                       # the user's choices (not in 
 DOCUMENTS = Path.home() / 'Documents'
 DW_ROOT = Path(r'C:\DolphinWorks')                 # where dolphinworks.bat installs
 NO_WINDOW, LOW_PRIORITY = 0x08000000, 0x4000
-VERSION = '0.3 (prototype)'
+VERSION = '0.3.1 (prototype)'
 BUILD_OUTPUT = re.compile(r'\\(Packaged|Intermediate)\\', re.I)   # a build's copy of the project: never listed
 
 
